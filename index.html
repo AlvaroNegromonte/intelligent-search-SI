@@ -4,32 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Busca Inteligente em Grid</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="./style.css">
 </head>
 <body>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/p5.min.js"></script>
 
-    <script src="Terrain.js"></script>
-    <script src="Cell.js"></script>
-    <script src="Grid.js"></script>
+    <script src="./src/world/Terrain.js"></script>
+    <script src="./src/world/Cell.js"></script>
+    <script src="./src/world/Grid.js"></script>
 
-    <script src="SearchAlgorithm.js"></script>
-    <script src="PriorityQueue.js"></script>
-    <script src="Heuristics.js"></script>
+    <script src="./src/search/SearchAlgorithm.js"></script>
+    <script src="./src/search/PriorityQueue.js"></script>
+    <script src="./src/search/Heuristics.js"></script>
 
-    <script src="BFS.js"></script>
-    <script src="DFS.js"></script>
-    <script src="UniformCostSearch.js"></script>
-    <script src="GreedySearch.js"></script>
-    <script src="AStar.js"></script>
+    <script src="./src/search/BFS.js"></script>
+    <script src="./src/search/DFS.js"></script>
+    <script src="./src/search/UniformCostSearch.js"></script>
+    <script src="./src/search/GreedySearch.js"></script>
+    <script src="./src/search/AStar.js"></script>
 
-    <script src="Agent.js"></script>
-    <script src="Food.js"></script>
-    <script src="UI.js"></script>
+    <script src="./src/agent/Agent.js"></script>
+    <script src="./src/entities/Food.js"></script>
 
-    <script src="SimulationState.js"></script>
-    <script src="Simulation.js"></script>
+    <script src="./src/ui/UI.js"></script>
+    <script src="./src/ui/SearchVisualizer.js"></script>
 
-    <script src="sketch.js"></script>
+    <script src="./src/core/SimulationState.js"></script>
+    <script src="./src/core/Simulation.js"></script>
+
+    <script src="./sketch.js"></script>
 </body>
 </html>

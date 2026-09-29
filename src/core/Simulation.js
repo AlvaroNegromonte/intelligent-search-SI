@@ -8,6 +8,7 @@ class Simulation {
         this.agent = new Agent(this.grid.getCell(0, 0));
         this.food = new Food(this.grid.getCell(cols - 1, rows - 1));
         this.ui = new UI();
+        this.searchVisualizer = new SearchVisualizer(cellSize);
         this.search = null;
         this.score = 0;
         this.state = SimulationState.WAITING;
@@ -91,20 +92,10 @@ class Simulation {
 
     display() {
         this.grid.display();
-        this.displaySearchData();
+        this.searchVisualizer.display(this.search);
         this.food.display(this.grid.cellSize);
         this.agent.display(this.grid.cellSize);
         this.ui.display();
-    }
-
-    displaySearchData() {
-        if (!this.search) {
-            return;
-        }
-
-        // TODO: desenhar this.search.visited.
-        // TODO: desenhar this.search.frontier.
-        // TODO: desenhar this.search.finalPath.
     }
 
     setState(state) {
