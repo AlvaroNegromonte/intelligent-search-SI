@@ -1,143 +1,187 @@
 # Intelligent Search Grid
 
-Intelligent Search Grid is a browser-based visualization of pathfinding algorithms on a weighted 2D grid. An agent searches for food while navigating sand, mud, water, and obstacles. The project is intended to make the behavior of uninformed and informed search algorithms visible one step at a time.
+Intelligent Search Grid é um projeto acadêmico em JavaScript e p5.js para visualizar buscas de caminhos em uma grade 2D ponderada. O objetivo é mostrar, passo a passo, como um agente procura comida em um mundo com areia, lama, água e obstáculos. Este guia explica como executar o projeto e contribuir mantendo o código simples e os componentes compatíveis.
 
-The planned algorithms are:
+Os algoritmos planejados são:
 
-- Breadth-First Search (BFS)
-- Depth-First Search (DFS)
-- Uniform-Cost Search (UCS)
-- Greedy Best-First Search
-- A* Search
+- Busca em Largura (BFS)
+- Busca em Profundidade (DFS)
+- Busca de Custo Uniforme (UCS)
+- Busca Gulosa pelo Melhor Primeiro
+- Busca A*
 
-The project currently provides the grid, terrain definitions, entities, simulation states, and search interfaces. Search execution, movement, controls, procedural terrain, and visualization overlays are still scaffolded with `TODO` comments.
+Atualmente, o projeto fornece a grade, as definições de terreno, as entidades, os estados da simulação e as interfaces de busca. A execução da busca, a movimentação, os controles, a geração procedural de terreno e as sobreposições de visualização ainda estão estruturados com comentários `TODO`.
 
-## Running the project
+Ao executar, aparece uma grade de 20 × 15 células de areia em um canvas de 800 × 600 pixels, com o agente no canto superior esquerdo e a comida no canto inferior direito. A simulação começa em `SimulationState.WAITING`, sem iniciar uma busca automaticamente.
 
-There is no build step or package installation. The application uses p5.js in global mode, loaded from a CDN.
+## Executando o projeto
 
-Open `index.html` directly for a quick run, or serve the repository locally:
+O fluxo principal é abrir o sketch no p5.js Web Editor e pressionar **Run ▶**. A aplicação utiliza p5.js no modo global, carregado por uma CDN; é necessária uma conexão com a internet.
 
-```sh
-python3 -m http.server 8000
-```
+Para preparar uma cópia no editor:
 
-Then visit <http://localhost:8000>. An internet connection is required to load p5.js.
+1. Abra <https://editor.p5js.org/> e crie um sketch.
+2. Substitua os arquivos padrão `index.html`, `style.css` e `sketch.js` pelos arquivos deste repositório.
+3. Adicione todos os demais arquivos `.js` à raiz do sketch, mantendo os nomes e o conteúdo. `README.md` e `AGENTS.md` não são necessários para a execução.
+4. Pressione **Run ▶**. Nas próximas execuções, basta pressionar Run novamente.
 
-## Repository structure
+Também é possível abrir `index.html` diretamente no navegador. Não há instalação de pacotes, etapa de build ou necessidade de servidor local, Node.js ou npm.
+
+## Estrutura do repositório
 
 ```text
 .
-├── index.html              # Script loading and dependency order
-├── sketch.js               # p5.js setup() and draw() entry points
-└── src
-    ├── agent/              # Agent path following and rendering
-    ├── core/               # Simulation coordination and state machine
-    ├── entities/           # Food and future world entities
-    ├── search/             # Search contract, algorithms, and utilities
-    ├── ui/                 # Algorithm selection and controls
-    └── world/              # Terrain, cells, and grid connectivity
+├── index.html          # Carrega p5.js, CSS e scripts na ordem correta
+├── style.css           # Estilos básicos da página e do canvas
+├── sketch.js           # Entrada do p5.js: setup() e draw()
+├── Terrain.js          # Propriedades e custos dos terrenos
+├── Cell.js             # Célula da grade
+├── Grid.js             # Criação, vizinhança e desenho da grade
+├── SearchAlgorithm.js  # Contrato compartilhado das buscas
+├── PriorityQueue.js    # Fila de prioridade baseada em array
+├── Heuristics.js       # Distância de Manhattan
+├── BFS.js              # Busca em largura (TODO)
+├── DFS.js              # Busca em profundidade (TODO)
+├── UniformCostSearch.js # Busca de custo uniforme (TODO)
+├── GreedySearch.js     # Busca gulosa (TODO)
+├── AStar.js            # Busca A* (TODO)
+├── Agent.js            # Posição, caminho e desenho do agente
+├── Food.js             # Posição e desenho da comida
+├── UI.js               # Estrutura dos futuros controles
+├── SimulationState.js  # Estados da simulação
+├── Simulation.js       # Coordenação dos componentes
+├── AGENTS.md           # Convenções do repositório
+└── README.md           # Guia de execução e contribuição
 ```
 
-## Development contracts
+Todos os arquivos JavaScript ficam na raiz para facilitar a reprodução do sketch no Web Editor. Preserve essa organização, com uma classe por arquivo. `sketch.js` deve apenas criar a simulação em `setup()` e chamar `update()` e `display()` em `draw()`.
 
-The following contracts keep the components compatible. Changes that intentionally alter one of them should update every consumer and this document in the same change.
+## Como contribuir
 
-### Runtime and source loading
+1. Escolha uma tarefa pequena e bem definida, como implementar um `TODO` de um algoritmo. Combine o escopo com os demais colaboradores para evitar alterações sobrepostas.
+2. Crie uma branch com um nome descritivo, por exemplo `search/bfs`.
+3. Leia a classe que será alterada, seus consumidores e os contratos abaixo. Faça a mudança no componente responsável e preserve o código existente que já funciona.
+4. Execute o sketch e faça as verificações correspondentes à mudança. Ao editar no Web Editor, copie os arquivos alterados de volta para o repositório antes de enviar a contribuição.
+5. Rode `git diff --check` e revise o diff. Inclua apenas arquivos relacionados à tarefa, sem configurações pessoais de editor ou arquivos gerados.
+6. Use commits curtos no imperativo, como `search: adiciona passo incremental da BFS`, e abra um pull request focado.
 
-- Keep the application browser-only and keep p5.js in global mode.
-- Do not introduce `import`, `export`, `require`, TypeScript, a bundler, or a framework.
-- Every class is made available through its `<script>` tag in `index.html`. A script must be listed after all of its dependencies.
-- `sketch.js` remains the final project script because it creates the top-level `Simulation` from p5.js `setup()` and drives it from `draw()`.
+No pull request, descreva o comportamento alterado e as verificações realizadas. Vincule a issue relacionada, se houver, e inclua uma captura de tela ou gravação curta quando a mudança afetar a visualização. Atualize este guia se mudar a estrutura ou algum contrato público.
 
-The current dependency flow is:
+## Contratos de desenvolvimento
+
+Os contratos a seguir mantêm os componentes compatíveis e orientam a implementação dos `TODOs`; eles não indicam que todas as funcionalidades já estão prontas. Alterações que modifiquem intencionalmente um contrato devem atualizar todos os seus consumidores e este documento na mesma mudança.
+
+### Ambiente de execução e carregamento do código-fonte
+
+- Mantenha a aplicação exclusiva para navegador e o p5.js no modo global.
+- Não introduza `import`, `export`, `require`, `type="module"`, TypeScript, frameworks, backend, `package.json` ou ferramentas de build. A execução deve continuar possível com um clique em Run.
+- Cada classe é disponibilizada por meio de sua tag `<script>` em `index.html`. Um script deve ser listado depois de todas as suas dependências.
+- `sketch.js` permanece como o último script do projeto, pois cria a `Simulation` de nível superior a partir do `setup()` do p5.js e a controla a partir de `draw()`.
+
+Preserve esta ordem de carregamento em `index.html`:
 
 ```text
-Terrain -> Cell -> Grid
-SearchAlgorithm + PriorityQueue + Heuristics -> search implementations
-Grid + search implementations + Agent + Food + UI + SimulationState -> Simulation
-Simulation -> sketch.js
+p5.js
+Terrain.js -> Cell.js -> Grid.js
+SearchAlgorithm.js -> PriorityQueue.js -> Heuristics.js
+BFS.js -> DFS.js -> UniformCostSearch.js -> GreedySearch.js -> AStar.js
+Agent.js -> Food.js -> UI.js
+SimulationState.js -> Simulation.js
+sketch.js
 ```
 
-### World and terrain
+As setas indicam a ordem das tags `<script>`. Ao adicionar um arquivo, carregue-o depois de suas dependências e antes de quem o utiliza.
 
-- Grid coordinates are zero-based and represented as `{ col, row }`. Cells are stored as `grid.cells[row][col]`.
-- Use `grid.getCell(col, row)` instead of indexing the matrix from other components. It returns `null` for an out-of-bounds coordinate.
-- Movement is orthogonal only. `Grid.connectNeighbors()` connects cells in the up, right, down, and left directions; diagonal movement is not part of the current model.
-- Search code must obtain traversable neighbors through `grid.getNeighbors(cell)`. It must not read or rebuild adjacency independently.
-- Cells are compared by object identity. Search maps and collections must contain the existing `Cell` instances returned by the grid, not coordinate copies or newly constructed cells.
-- All terrain properties belong in `src/world/Terrain.js`. Add or change terrain cost, speed, walkability, label, or color there rather than scattering terrain-specific conditions through the codebase.
-- Obstacles are not walkable, have infinite search cost, and must be excluded by `Grid.getNeighbors()`.
-- A movement cost is the cost of entering the neighboring cell. This convention must be used by UCS and A*.
+### Mundo e terreno
 
-Current terrain values are:
+- As coordenadas da grade começam em zero e são representadas como `{ col, row }`. As células são armazenadas como `grid.cells[row][col]`.
+- Use `grid.getCell(col, row)` em vez de indexar a matriz a partir de outros componentes. O método retorna `null` para uma coordenada fora dos limites.
+- A movimentação é somente ortogonal. `Grid.connectNeighbors()` conecta as células nas direções para cima, direita, baixo e esquerda; o movimento diagonal não faz parte do modelo atual.
+- O código de busca deve obter os vizinhos transitáveis por meio de `grid.getNeighbors(cell)`. Ele não deve ler nem reconstruir a adjacência de forma independente.
+- As células são comparadas por identidade de objeto. Os mapas e as coleções de busca devem conter as instâncias de `Cell` existentes retornadas pela grade, e não cópias de coordenadas ou células recém-construídas.
+- Todas as propriedades de terreno devem ficar em `Terrain.js`. Adicione ou altere custo, velocidade, transitabilidade, rótulo ou cor do terreno nesse arquivo, em vez de espalhar condições específicas de terreno pelo código. As buscas devem consultar `cell.cost`, sem repetir os valores dos terrenos.
+- Obstáculos não são transitáveis, têm custo de busca infinito e devem ser excluídos por `Grid.getNeighbors()`.
+- Um custo de movimento é o custo de entrar na célula vizinha. Essa convenção deve ser usada pela UCS e pela A*. Os valores atuais de terreno são:
 
-| Terrain | Cost | Speed multiplier | Walkable |
+| Terreno | Custo | Multiplicador de velocidade | Transitável |
 | --- | ---: | ---: | :---: |
-| Sand | 10 | 1.0 | Yes |
-| Mud | 50 | 0.6 | Yes |
-| Water | 100 | 0.3 | Yes |
-| Obstacle | Infinity | 0 | No |
+| Areia | 10 | 1.0 | Sim |
+| Lama | 50 | 0.6 | Sim |
+| Água | 100 | 0.3 | Sim |
+| Obstáculo | Infinito | 0 | Não |
 
-### Search algorithms
+### Algoritmos de busca
 
-- Every search implementation must extend `SearchAlgorithm` and accept `(grid, start, goal)` in its constructor.
-- One call to `step()` may process at most one search node. It must never run the full search in a loop. The simulation relies on this rule to animate the exploration.
-- `frontier`, `visited`, and `finalPath` are public visualization data and must remain arrays of `Cell` objects. An algorithm may keep an additional queue, stack, priority queue, set, or map internally, but the public arrays must reflect its current state.
-- A cell should enter `visited` when it is removed from the frontier for processing, not when it is merely discovered.
-- Use `grid.getNeighbors(cell)` for expansion and `cameFrom` to record the predecessor of each discovered or improved cell.
-- Finish successfully when the processed cell is the goal. Finish unsuccessfully when no nodes remain to process. Call `finish(found)` so `finished`, `found`, and `finalPath` stay consistent.
-- A successful `finalPath` is ordered from start to goal and includes both endpoints. A failed search has an empty path.
-- `reset()` must restore all shared search state. Algorithm subclasses that own additional queues, stacks, sets, or cost maps must clear those structures too.
-- BFS uses FIFO ordering; DFS uses LIFO ordering; UCS prioritizes accumulated entry cost; Greedy Search prioritizes only the heuristic; A* prioritizes accumulated entry cost plus the heuristic.
-- Greedy Search and A* use `Heuristics.manhattan(cell, goal)`. Manhattan distance matches the grid's orthogonal movement contract.
-- If a lower accumulated cost reaches a cell in UCS or A*, update its priority, `cameFrom`, and `costSoFar`. Do not treat the first discovery as permanently optimal.
+- Toda implementação de busca deve estender `SearchAlgorithm` e aceitar `(grid, start, goal)` em seu construtor.
+- Uma chamada a `step()` pode processar, no máximo, um nó de busca. Ela nunca deve executar a busca completa em um laço. A simulação depende dessa regra para animar a exploração.
+- `frontier`, `visited` e `finalPath` são dados públicos de visualização e devem permanecer como arrays de objetos `Cell`. Um algoritmo pode manter internamente uma fila, pilha, fila de prioridade, conjunto ou mapa adicional, mas os arrays públicos devem refletir seu estado atual.
+- Uma célula deve entrar em `visited` quando for removida da fronteira para processamento, e não quando for apenas descoberta.
+- Use `grid.getNeighbors(cell)` para a expansão e `cameFrom` para registrar o predecessor de cada célula descoberta ou aprimorada.
+- Finalize com sucesso quando a célula processada for o objetivo. Finalize sem sucesso quando não restarem nós para processar. Chame `finish(found)` para que `finished`, `found` e `finalPath` permaneçam consistentes.
+- `getPath()` retorna `finalPath`, ordenado do início ao objetivo e incluindo ambas as extremidades quando houver sucesso. Uma busca malsucedida possui um caminho vazio.
+- `reset()` deve restaurar todo o estado de busca compartilhado. As subclasses de algoritmos que possuam filas, pilhas, conjuntos ou mapas de custo adicionais também devem limpar essas estruturas.
+- A BFS usa ordenação FIFO; a DFS usa ordenação LIFO; a UCS prioriza o custo de entrada acumulado; a Busca Gulosa prioriza apenas a heurística; e a A* prioriza o custo de entrada acumulado somado à heurística.
+- A Busca Gulosa e a A* usam `Heuristics.manhattan(cell, goal)`. A distância de Manhattan corresponde ao contrato de movimento ortogonal da grade.
+- Se um custo acumulado menor alcançar uma célula na UCS ou na A*, atualize sua prioridade, `cameFrom` e `costSoFar`. Não trate a primeira descoberta como permanentemente ótima.
 
-### Priority queue
+### Fila de prioridade
 
-- `PriorityQueue` stores arbitrary elements with numeric priorities and dequeues the lowest numeric priority first.
-- Search visualizations must not depend on the queue's private `{ element, priority }` records. Use `toArray()` when an array of frontier elements is needed.
-- Preserve reference-based behavior for `contains(element)` so it remains compatible with grid-owned `Cell` objects.
+- `PriorityQueue` armazena elementos arbitrários com prioridades numéricas e remove primeiro o elemento com o menor valor numérico de prioridade.
+- Mantenha a implementação simples, baseada em array.
+- As visualizações de busca não devem depender dos registros privados `{ element, priority }` da fila. Use `toArray()` quando for necessário um array de elementos da fronteira.
+- Preserve o comportamento baseado em referência de `contains(element)` para que ele continue compatível com os objetos `Cell` pertencentes à grade.
 
-### Agent, food, and simulation
+### Agente, comida e simulação
 
-- `Agent.position` and `Food.position` are `Cell` references, not raw coordinates.
-- `Agent.setPath(path)` receives a start-to-goal array of cells. Paths with more than one cell begin movement; empty and single-cell paths do not.
-- Agent movement must advance gradually rather than consume an entire path in one frame. Terrain speed comes from `Terrain.getSpeedMultiplier()`.
-- The `Simulation` owns coordination between the grid, search, entities, UI, score, and lifecycle. Components should not create or control one another directly.
-- Valid lifecycle states are `WAITING`, `SEARCHING`, `MOVING`, and `COLLECTING`. Use `simulation.setState()` so invalid states are rejected.
-- During `SEARCHING`, `Simulation.update()` invokes exactly one search `step()` per frame. A successful result is passed to the agent before entering `MOVING`; failure returns to a non-moving state.
-- Collection occurs only after the agent reaches the food. Collection updates the score, relocates food to a valid walkable cell distinct from the agent, and returns the simulation to `WAITING`.
-- Keep state changes in update methods and rendering in `display()` methods. Drawing code must not advance the simulation.
-- Algorithm identifiers exposed by the UI and accepted by `Simulation.createSearchAlgorithm()` must stay synchronized: `BFS`, `DFS`, `UCS`, `GREEDY`, and `ASTAR`.
+- `Agent.position` e `Food.position` são referências a objetos `Cell`, não coordenadas brutas.
+- `Agent.setPath(path)` recebe um array de células ordenado do início ao objetivo e define `isMoving` como verdadeiro se houver mais de uma célula. O avanço da posição em `Agent.update()` ainda é um `TODO`.
+- O movimento do agente deve avançar gradualmente, em vez de consumir um caminho inteiro em um único quadro. A velocidade do terreno vem de `Terrain.getSpeedMultiplier()`.
+- A `Simulation` é responsável pela coordenação entre a grade, a busca, as entidades, a interface, a pontuação e o ciclo de vida. Os componentes não devem criar nem controlar uns aos outros diretamente.
+- Os estados válidos do ciclo de vida são `WAITING`, `SEARCHING`, `MOVING` e `COLLECTING`. Use `simulation.setState()` para que estados inválidos sejam rejeitados.
+- A simulação deve começar em `WAITING`. Mantenha o início de buscas em `startSearch()`, acionado explicitamente; não inicie algoritmos incompletos no construtor ou em `setup()`.
+- Durante `SEARCHING`, `updateSearching()` chama um `step()` por quadro enquanto houver uma busca não finalizada. Ao implementar o tratamento do resultado, envie o caminho ao agente com `agent.setPath(path)` antes de entrar em `MOVING`; uma falha deve retornar a um estado sem movimento.
+- Ao implementar a coleta, faça-a ocorrer somente depois que o agente alcançar a comida. Atualize a pontuação, reposicione a comida em uma célula válida e transitável, diferente da célula do agente, e retorne a simulação para `WAITING`.
+- `Simulation` e `UI` devem usar o contrato público da busca, sem depender de `queue`, `stack`, `priorityQueue` ou `costSoFar`.
+- Mantenha as mudanças de estado nos métodos de atualização e a renderização nos métodos `display()`. O código de desenho não deve avançar a simulação.
+- Os identificadores de algoritmos expostos pela interface e aceitos por `Simulation.createSearchAlgorithm()` devem permanecer sincronizados: `BFS`, `DFS`, `UCS`, `GREEDY` e `ASTAR`.
 
-## Adding a search algorithm
+## Adicionando um algoritmo de busca
 
-1. Create a `PascalCase.js` class in `src/search/` that extends `SearchAlgorithm`.
-2. Implement incremental initialization and a `step()` that processes no more than one node.
-3. Maintain the shared visualization arrays and path reconstruction contract.
-4. Add its script to `index.html` after its dependencies and before `Simulation.js`.
-5. Add the same stable identifier to `UI.availableAlgorithms` and `Simulation.createSearchAlgorithm()`.
-6. Manually verify frontier contents, visit order, final path order, failure behavior, and one-step-per-call execution.
+1. Para implementar uma busca planejada, edite sua classe existente. Para uma nova busca, crie na raiz um arquivo `PascalCase.js` com uma classe que estenda `SearchAlgorithm`.
+2. Implemente a inicialização incremental e um `step()` que processe, no máximo, um nó.
+3. Mantenha os arrays de visualização compartilhados e o contrato de reconstrução do caminho.
+4. Se criou um arquivo, adicione seu script a `index.html` depois de suas dependências e antes de `Simulation.js`.
+5. Para uma nova busca, adicione o mesmo identificador a `UI.availableAlgorithms` e `Simulation.createSearchAlgorithm()`.
+6. Verifique manualmente o conteúdo da fronteira, a ordem de visita, a ordem do caminho final, o comportamento em caso de falha e a execução de um passo por chamada.
 
-## Style and verification
+## Estilo e verificação
 
-- Use four-space indentation, semicolons, and double-quoted strings.
-- Use `PascalCase` for classes and their filenames, `camelCase` for variables and methods, and uppercase names for fixed identifiers such as `SimulationState.WAITING`.
-- Prefer small, focused methods and keep p5.js drawing calls inside display-oriented methods.
-- Place future automated tests in a root-level `tests/` directory and name them `*.test.js`. Do not add a test framework unless the repository deliberately adopts one.
+- Use indentação de quatro espaços, ponto e vírgula e strings com aspas duplas.
+- Use `PascalCase` para classes e seus nomes de arquivo, `camelCase` para variáveis e métodos e nomes em letras maiúsculas para identificadores fixos, como `SimulationState.WAITING`.
+- Prefira métodos pequenos e focados e mantenha as chamadas de desenho do p5.js dentro de métodos voltados à exibição.
+- Use nomes diretos, como `getNeighbors()`, `setPath()` e `updateSearching()`, e comentários curtos que expliquem decisões. Preserve `TODOs` das funcionalidades fora do escopo da contribuição.
+- Coloque futuros testes automatizados em um diretório `tests/` na raiz e nomeie-os como `*.test.js`. Não adicione um framework de testes, a menos que o repositório adote um deliberadamente.
 
-Before submitting a change, run:
+Antes de enviar uma alteração, execute:
 
 ```sh
 git diff --check
 ```
 
-Also verify manually that:
+Verifique também manualmente se:
 
-- the browser console contains no errors;
-- the 20 x 15 grid renders at 800 x 600 pixels;
-- the agent starts at the top-left and food at the bottom-right;
-- each search call processes at most one node;
-- frontier, visited cells, and the final path are displayed in the expected order; and
-- weighted algorithms use terrain entry costs correctly.
+- o console do navegador não contém erros;
+- a grade de 20 × 15 é renderizada em 800 × 600 pixels;
+- o agente começa no canto superior esquerdo e a comida no canto inferior direito;
+- a grade inicial usa areia e a simulação permanece em `WAITING`, sem executar buscas automaticamente.
+
+Quando a contribuição implementar ou alterar uma busca, verifique também:
+
+- cada chamada de `step()` processa, no máximo, um nó;
+- `frontier`, `visited` e `finalPath` contêm objetos `Cell` da grade;
+- `getPath()` retorna o caminho do início ao objetivo, ou um array vazio em caso de falha;
+- a busca termina tanto ao encontrar o objetivo quanto ao esgotar a fronteira;
+- `reset()` limpa o estado compartilhado e as estruturas internas do algoritmo;
+- UCS e A* usam corretamente o custo de entrar na célula vizinha;
+- Gulosa e A* usam `Heuristics.manhattan()`; e
+- as sobreposições de fronteira, visitados e caminho correspondem aos dados da busca, caso essa visualização já esteja implementada.

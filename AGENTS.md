@@ -4,13 +4,13 @@
 
 This is a browser-only JavaScript and p5.js project. `index.html` loads all scripts; `sketch.js` contains the global-mode `setup()` and `draw()` entry points.
 
-Source files are grouped by responsibility:
+JavaScript files stay at the repository root so the same files can be uploaded directly to the p5.js Web Editor. Responsibilities remain separated by class:
 
-- `src/world/`: terrain definitions, cells, and grid connectivity.
-- `src/search/`: the shared search contract, utilities, and algorithm classes.
-- `src/agent/` and `src/entities/`: the agent and food objects.
-- `src/ui/`: user-interface state and future controls.
-- `src/core/`: simulation states and component coordination.
+- `Terrain.js`, `Cell.js`, and `Grid.js`: terrain definitions, cells, and grid connectivity.
+- `SearchAlgorithm.js`, `PriorityQueue.js`, `Heuristics.js`, and the algorithm classes: the shared search contract and search utilities.
+- `Agent.js` and `Food.js`: the agent and food objects.
+- `UI.js`: user-interface state and future controls.
+- `SimulationState.js` and `Simulation.js`: simulation states and component coordination.
 
 No test or asset directories exist yet. Add root-level `tests/` or `assets/` only when needed.
 
@@ -18,8 +18,8 @@ No test or asset directories exist yet. Add root-level `tests/` or `assets/` onl
 
 No build step, package manager, or dependency installation is required. Do not add bundles or `node_modules`.
 
-- Open `index.html` directly in a browser for a quick run.
-- Run `python3 -m http.server 8000`, then visit `http://localhost:8000`, for local development.
+- Open the sketch files in the p5.js Web Editor and press Run for normal use.
+- Open `index.html` directly in a browser for a quick local run; no local server is required.
 - Run `git diff --check` before submitting changes to detect whitespace errors.
 
 p5.js comes from a CDN, so running the project requires internet access.
