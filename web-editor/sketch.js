@@ -4,42 +4,6 @@
 // src/world/Terrain.js
 // ========================================
 class Terrain {
-    static SAND = "SAND";
-    static MUD = "MUD";
-    static WATER = "WATER";
-    static OBSTACLE = "OBSTACLE";
-
-    static TYPES = Object.freeze({
-        SAND: Object.freeze({
-            label: "Areia",
-            cost: 10,
-            speedMultiplier: 1,
-            walkable: true,
-            color: Object.freeze([224, 196, 126])
-        }),
-        MUD: Object.freeze({
-            label: "Atoleiro",
-            cost: 50,
-            speedMultiplier: 0.6,
-            walkable: true,
-            color: Object.freeze([132, 94, 61])
-        }),
-        WATER: Object.freeze({
-            label: "Água",
-            cost: 100,
-            speedMultiplier: 0.3,
-            walkable: true,
-            color: Object.freeze([79, 151, 205])
-        }),
-        OBSTACLE: Object.freeze({
-            label: "Obstáculo",
-            cost: Infinity,
-            speedMultiplier: 0,
-            walkable: false,
-            color: Object.freeze([55, 55, 55])
-        })
-    });
-
     static getProperties(type) {
         const properties = Terrain.TYPES[type];
 
@@ -66,6 +30,42 @@ class Terrain {
         return Terrain.getProperties(type).color;
     }
 }
+
+Terrain.SAND = "SAND";
+Terrain.MUD = "MUD";
+Terrain.WATER = "WATER";
+Terrain.OBSTACLE = "OBSTACLE";
+
+Terrain.TYPES = Object.freeze({
+    SAND: Object.freeze({
+        label: "Areia",
+        cost: 10,
+        speedMultiplier: 1,
+        walkable: true,
+        color: Object.freeze([224, 196, 126])
+    }),
+    MUD: Object.freeze({
+        label: "Atoleiro",
+        cost: 50,
+        speedMultiplier: 0.6,
+        walkable: true,
+        color: Object.freeze([132, 94, 61])
+    }),
+    WATER: Object.freeze({
+        label: "Água",
+        cost: 100,
+        speedMultiplier: 0.3,
+        walkable: true,
+        color: Object.freeze([79, 151, 205])
+    }),
+    OBSTACLE: Object.freeze({
+        label: "Obstáculo",
+        cost: Infinity,
+        speedMultiplier: 0,
+        walkable: false,
+        color: Object.freeze([55, 55, 55])
+    })
+});
 
 
 // ========================================
@@ -203,10 +203,14 @@ class Grid {
     }
 
     generateProcedural(options = {}) {
-        const obstacleChance = options.obstacleChance ?? 0.15;
-        const mudChance = options.mudChance ?? 0.15;
-        const waterChance = options.waterChance ?? 0.10;
-        const ensureSolvable = options.ensureSolvable ?? true;
+        const obstacleChance = options.obstacleChance === undefined || options.obstacleChance === null
+            ? 0.15 : options.obstacleChance;
+        const mudChance = options.mudChance === undefined || options.mudChance === null
+            ? 0.15 : options.mudChance;
+        const waterChance = options.waterChance === undefined || options.waterChance === null
+            ? 0.10 : options.waterChance;
+        const ensureSolvable = options.ensureSolvable === undefined || options.ensureSolvable === null
+            ? true : options.ensureSolvable;
 
         const maxAttempts = 10;
         let attempt = 0;

@@ -76,10 +76,14 @@ class Grid {
     }
 
     generateProcedural(options = {}) {
-        const obstacleChance = options.obstacleChance ?? 0.15;
-        const mudChance = options.mudChance ?? 0.15;
-        const waterChance = options.waterChance ?? 0.10;
-        const ensureSolvable = options.ensureSolvable ?? true;
+        const obstacleChance = options.obstacleChance === undefined || options.obstacleChance === null
+            ? 0.15 : options.obstacleChance;
+        const mudChance = options.mudChance === undefined || options.mudChance === null
+            ? 0.15 : options.mudChance;
+        const waterChance = options.waterChance === undefined || options.waterChance === null
+            ? 0.10 : options.waterChance;
+        const ensureSolvable = options.ensureSolvable === undefined || options.ensureSolvable === null
+            ? true : options.ensureSolvable;
 
         const maxAttempts = 10;
         let attempt = 0;
