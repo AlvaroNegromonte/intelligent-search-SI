@@ -75,9 +75,104 @@ class Grid {
         return true;
     }
 
-    generateProcedural() {
-        // TODO: distribuir terrenos e obstáculos de forma procedural.
-        // TODO: garantir que agente e comida permaneçam em posições válidas.
+    generateProcedural(options = {}) {
+        const obstacleChance = options.obstacleChance ?? 0.15;
+        const mudChance = options.mudChance ?? 0.15;
+        const waterChance = options.waterChance ?? 0.10;
+        const ensureSolvable = options.ensureSolvable ?? true;
+
+        const maxAttempts = 10;
+        let attempt = 0;
+        let solvable = false;
+
+        const startCell = this.getCell(0, 0);
+        const goalCell = this.getCell(this.cols - 1, this.rows - 1);
+
+        while (attempt < maxAttempts && !solvable) {
+            attempt += 1;
+
+            for (let row = 0; row < this.rows; row += 1) {
+                for (let col = 0; col < this.cols; col += 1) {
+                    const roll = Math.random();
+
+                    if (roll < obstacleChance) {
+                        this.setTerrain(col, row, Terrain.OBSTACLE);
+                    } else if (roll < obstacleChance + mudChance) {
+                        this.setTerrain(col, row, Terrain.MUD);
+                    } else if (roll < obstacleChance + mudChance + waterChance) {
+                        this.setTerrain(col, row, Terrain.WATER);
+                    } else {
+                        this.setTerrain(col, row, Terrain.SAND);
+                    }
+                }
+            }
+
+            if (startCell) {
+                startCell.setTerrain(Terrain.SAND);
+            }
+
+            if (goalCell) {
+                goalCell.setTerrain(Terrain.SAND);
+            }
+
+            if (!ensureSolvable || this.isReachable(startCell, goalCell)) {
+                solvable = true;
+            }
+        }
+
+        if (ensureSolvable && !solvable && startCell && goalCell) {
+            this.carveSolvablePath(startCell, goalCell);
+        }
+    }
+
+    isReachable(startCell, goalCell) {
+        if (!startCell || !goalCell || !startCell.walkable || !goalCell.walkable) {
+            return false;
+        }
+
+        const queue = [startCell];
+        const visited = new Set([startCell]);
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+
+            if (current === goalCell) {
+                return true;
+            }
+
+            for (const neighbor of this.getNeighbors(current)) {
+                if (!visited.has(neighbor)) {
+                    visited.add(neighbor);
+                    queue.push(neighbor);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    carveSolvablePath(startCell, goalCell) {
+        let currentCol = startCell.col;
+        let currentRow = startCell.row;
+
+        while (currentCol !== goalCell.col || currentRow !== goalCell.row) {
+            const cell = this.getCell(currentCol, currentRow);
+            if (cell && cell.terrainType === Terrain.OBSTACLE) {
+                cell.setTerrain(Terrain.SAND);
+            }
+
+            const moveCol = currentCol < goalCell.col && (currentRow === goalCell.row || Math.random() < 0.5);
+
+            if (moveCol) {
+                currentCol += 1;
+            } else if (currentRow < goalCell.row) {
+                currentRow += 1;
+            } else if (currentCol < goalCell.col) {
+                currentCol += 1;
+            }
+        }
+
+        goalCell.setTerrain(Terrain.SAND);
     }
 
     display() {
