@@ -129,10 +129,109 @@ test("Grid.generateProcedural cria terrenos variados e garante caminho viável",
     assert.ok(terrains.size > 1, "A grade gerada deve conter mais de um tipo de terreno");
 });
 
-// Resumo dos testes até o momento
+// 3. Testes de BFS
+test("BFS inicializa com start na fila e na fronteira", () => {
+    const grid = new Grid(5, 5, 40);
+    const start = grid.getCell(0, 0);
+    const goal = grid.getCell(4, 4);
+    const bfs = new BFS(grid, start, goal);
+
+    assert.strictEqual(bfs.frontier.length, 1);
+    assert.strictEqual(bfs.frontier[0], start);
+    assert.strictEqual(bfs.visited.length, 0);
+    assert.strictEqual(bfs.isFinished(), false);
+});
+
+test("BFS executa exatamente um passo por chamada a step()", () => {
+    const grid = new Grid(5, 5, 40);
+    const start = grid.getCell(0, 0);
+    const goal = grid.getCell(4, 4);
+    const bfs = new BFS(grid, start, goal);
+
+    bfs.step();
+    // Após 1 passo: start foi processado, entrou em visited, vizinhos de start entraram na fronteira
+    assert.strictEqual(bfs.visited.length, 1);
+    assert.strictEqual(bfs.visited[0], start);
+    assert.ok(bfs.frontier.length > 0);
+    assert.strictEqual(bfs.isFinished(), false);
+});
+
+test("BFS encontra caminho ordenado do start ao goal em grid desobstruído", () => {
+    const grid = new Grid(5, 5, 40);
+    const start = grid.getCell(0, 0);
+    const goal = grid.getCell(2, 2);
+    const bfs = new BFS(grid, start, goal);
+
+    let steps = 0;
+    while (!bfs.isFinished() && steps < 1000) {
+        bfs.step();
+        steps++;
+    }
+
+    assert.strictEqual(bfs.found, true);
+    assert.strictEqual(bfs.isFinished(), true);
+
+    const path = bfs.getPath();
+    assert.ok(path.length > 0);
+    assert.strictEqual(path[0], start);
+    assert.strictEqual(path[path.length - 1], goal);
+
+    // Distância Manhattan entre (0,0) e (2,2) é 4 passos (5 células no caminho)
+    assert.strictEqual(path.length, 5);
+
+    // Valida adjacência entre células consecutivas do caminho
+    for (let i = 0; i < path.length - 1; i++) {
+        const c1 = path[i];
+        const c2 = path[i + 1];
+        const dist = Math.abs(c1.col - c2.col) + Math.abs(c1.row - c2.row);
+        assert.strictEqual(dist, 1, "Células consecutivas no caminho devem ser adjacentes ortogonalmente");
+    }
+});
+
+test("BFS termina com falha graciosa quando o objetivo é inalcançável", () => {
+    const grid = new Grid(5, 5, 40);
+    const start = grid.getCell(0, 0);
+    const goal = grid.getCell(4, 4);
+
+    // Bloqueia completamente o goal com obstáculos
+    grid.setTerrain(3, 4, Terrain.OBSTACLE);
+    grid.setTerrain(4, 3, Terrain.OBSTACLE);
+
+    const bfs = new BFS(grid, start, goal);
+
+    let steps = 0;
+    while (!bfs.isFinished() && steps < 1000) {
+        bfs.step();
+        steps++;
+    }
+
+    assert.strictEqual(bfs.isFinished(), true);
+    assert.strictEqual(bfs.found, false);
+    assert.strictEqual(bfs.getPath().length, 0);
+});
+
+test("BFS.reset restaura completamente o estado de busca", () => {
+    const grid = new Grid(5, 5, 40);
+    const start = grid.getCell(0, 0);
+    const goal = grid.getCell(2, 2);
+    const bfs = new BFS(grid, start, goal);
+
+    bfs.step();
+    bfs.step();
+    assert.ok(bfs.visited.length > 0);
+
+    bfs.reset();
+    assert.strictEqual(bfs.visited.length, 0);
+    assert.strictEqual(bfs.frontier.length, 1);
+    assert.strictEqual(bfs.frontier[0], start);
+    assert.strictEqual(bfs.isFinished(), false);
+    assert.strictEqual(bfs.found, false);
+});
+
+// Resumo dos testes
 if (failed > 0) {
     console.error(`\nTestes finalizados: ${passed} passaram, ${failed} falharam.`);
     process.exit(1);
 } else {
-    console.log(`\nTestes de base finalizados com sucesso: ${passed} passaram.`);
+    console.log(`\nTodos os testes finalizados com sucesso: ${passed} passaram.`);
 }
