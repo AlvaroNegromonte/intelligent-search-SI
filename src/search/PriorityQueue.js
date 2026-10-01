@@ -4,17 +4,37 @@ class PriorityQueue {
     }
 
     enqueue(element, priority) {
-        this.items.push({ element, priority });
+        const existingItem = this.items.find((item) => item.element === element);
+
+        if (existingItem) {
+            if (priority >= existingItem.priority) {
+                return;
+            }
+
+            existingItem.priority = priority;
+        } else {
+            this.items.push({ element, priority });
+        }
+
         this.items.sort((itemA, itemB) => itemA.priority - itemB.priority);
     }
 
     dequeue() {
         const item = this.items.shift();
-        return item ? item.element : null;
+
+        if (item) {
+            return item.element;
+        } else {
+            return null;
+        }
     }
 
     peek() {
-        return this.items.length > 0 ? this.items[0].element : null;
+        if (this.items.length > 0) {
+            return this.items[0].element;
+        } else {
+            return null;
+        }
     }
 
     isEmpty() {
