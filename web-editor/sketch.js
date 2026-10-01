@@ -399,17 +399,37 @@ class PriorityQueue {
     }
 
     enqueue(element, priority) {
-        this.items.push({ element, priority });
+        const existingItem = this.items.find((item) => item.element === element);
+
+        if (existingItem) {
+            if (priority >= existingItem.priority) {
+                return;
+            }
+
+            existingItem.priority = priority;
+        } else {
+            this.items.push({ element, priority });
+        }
+
         this.items.sort((itemA, itemB) => itemA.priority - itemB.priority);
     }
 
     dequeue() {
         const item = this.items.shift();
-        return item ? item.element : null;
+
+        if (item) {
+            return item.element;
+        } else {
+            return null;
+        }
     }
 
     peek() {
-        return this.items.length > 0 ? this.items[0].element : null;
+        if (this.items.length > 0) {
+            return this.items[0].element;
+        } else {
+            return null;
+        }
     }
 
     isEmpty() {
@@ -511,12 +531,60 @@ class DFS extends SearchAlgorithm {
     constructor(grid, start, goal) {
         super(grid, start, goal);
         this.stack = [];
+        this.discovered = new Set();
+
+        this.init();
+    }
+
+    init() {
+        if (this.start) {
+            this.stack.push(this.start);
+            this.frontier.push(this.start);
+            this.discovered.add(this.start);
+        }
     }
 
     step() {
-        // TODO: retirar um único nó da pilha e marcá-lo como visitado.
-        // TODO: empilhar os vizinhos ainda não descobertos.
-        // TODO: finalizar ao encontrar o objetivo ou esvaziar a pilha.
+        if (this.finished) {
+            return;
+        }
+
+        if (this.stack.length === 0) {
+            this.finish(false);
+            return;
+        }
+
+        // LIFO: o último nó empilhado é o próximo a ser processado.
+        const current = this.stack.pop();
+        this.frontier = [...this.stack];
+        this.visited.push(current);
+
+        if (current === this.goal) {
+            this.finish(true);
+            return;
+        }
+
+        const neighbors = this.grid.getNeighbors(current);
+
+        // Empilha em ordem reversa para que o primeiro vizinho de getNeighbors()
+        // fique no topo da pilha e seja explorado primeiro.
+        for (let i = neighbors.length - 1; i >= 0; i -= 1) {
+            const neighbor = neighbors[i];
+
+            if (!this.discovered.has(neighbor)) {
+                this.discovered.add(neighbor);
+                this.cameFrom.set(neighbor, current);
+                this.stack.push(neighbor);
+                this.frontier.push(neighbor);
+            }
+        }
+    }
+
+    reset() {
+        super.reset();
+        this.stack = [];
+        this.discovered = new Set();
+        this.init();
     }
 }
 
@@ -529,12 +597,65 @@ class UniformCostSearch extends SearchAlgorithm {
         super(grid, start, goal);
         this.priorityQueue = new PriorityQueue();
         this.costSoFar = new Map();
+
+        this.init();
+    }
+
+    init() {
+        if (this.start) {
+            // O custo inicial é zero: só cobramos a entrada nos vizinhos.
+            this.costSoFar.set(this.start, 0);
+            this.priorityQueue.enqueue(this.start, 0);
+            this.frontier = this.priorityQueue.toArray();
+        }
     }
 
     step() {
-        // TODO: retirar somente o nó de menor custo acumulado.
-        // TODO: calcular novos custos usando o custo de entrada do vizinho.
-        // TODO: atualizar fronteira, cameFrom e costSoFar quando houver melhora.
+        if (this.finished) {
+            return;
+        }
+
+        if (this.priorityQueue.isEmpty()) {
+            this.finish(false);
+            return;
+        }
+
+        const current = this.priorityQueue.dequeue();
+        this.frontier = this.priorityQueue.toArray();
+        this.visited.push(current);
+
+        if (current === this.goal) {
+            this.finish(true);
+            return;
+        }
+
+        const currentCost = this.costSoFar.get(current);
+        const neighbors = this.grid.getNeighbors(current);
+
+        for (const neighbor of neighbors) {
+            // Com custos não negativos, um nó expandido já tem custo mínimo.
+            if (this.visited.includes(neighbor)) {
+                continue;
+            }
+
+            const newCost = currentCost + neighbor.cost;
+            const knownCost = this.costSoFar.get(neighbor);
+
+            if (!this.costSoFar.has(neighbor) || newCost < knownCost) {
+                this.costSoFar.set(neighbor, newCost);
+                this.cameFrom.set(neighbor, current);
+                this.priorityQueue.enqueue(neighbor, newCost);
+            }
+        }
+
+        this.frontier = this.priorityQueue.toArray();
+    }
+
+    reset() {
+        super.reset();
+        this.priorityQueue.clear();
+        this.costSoFar.clear();
+        this.init();
     }
 }
 
@@ -705,6 +826,10 @@ class UI {
 class SearchVisualizer {
     constructor(cellSize) {
         this.cellSize = cellSize;
+
+        // Estado apenas visual: não altera a busca nem o ciclo da simulação.
+        this.trackedSearch = null;
+        this.pathFrames = 0;
     }
 
     display(search) {
@@ -712,23 +837,149 @@ class SearchVisualizer {
             return;
         }
 
+        this.updatePathAnimation(search);
+
         this.drawVisited(search.visited);
         this.drawFrontier(search.frontier);
+        this.drawCurrent(search);
         this.drawPath(search.finalPath);
     }
 
+    updatePathAnimation(search) {
+        // Reinicia a animação quando uma nova busca começa ou a atual é reiniciada.
+        if (search !== this.trackedSearch || search.finalPath.length === 0) {
+            this.trackedSearch = search;
+            this.pathFrames = 0;
+        } else {
+            this.pathFrames += 1;
+        }
+    }
+
     drawVisited(visited) {
-        // TODO: desenhar as células visitadas.
+        const colors = SearchVisualizer.COLORS;
+        const trailLength = SearchVisualizer.TRAIL_LENGTH;
+        const trailStart = visited.length - trailLength;
+
+        push();
+        noStroke();
+
+        for (let i = 0; i < visited.length; i += 1) {
+            // Os nós visitados mais recentemente ficam mais intensos,
+            // formando um rastro que mostra o avanço da busca passo a passo.
+            const recency = i >= trailStart ? (i - trailStart + 1) / trailLength : 0;
+            const alpha = colors.visitedAlpha + (colors.trailAlpha - colors.visitedAlpha) * recency;
+
+            fill(...colors.visited, alpha);
+            this.drawCell(visited[i], 1);
+        }
+
+        pop();
     }
 
     drawFrontier(frontier) {
-        // TODO: desenhar as células da fronteira.
+        const colors = SearchVisualizer.COLORS;
+
+        push();
+        stroke(...colors.frontierStroke);
+        strokeWeight(2);
+        fill(...colors.frontier);
+
+        for (const cell of frontier) {
+            this.drawCell(cell, this.cellSize * 0.25);
+        }
+
+        pop();
+    }
+
+    drawCurrent(search) {
+        // O último nó visitado é o que acabou de ser expandido.
+        if (search.isFinished() || search.visited.length === 0) {
+            return;
+        }
+
+        const current = search.visited[search.visited.length - 1];
+
+        push();
+        noFill();
+        stroke(...SearchVisualizer.COLORS.current);
+        strokeWeight(3);
+        this.drawCell(current, 2);
+        pop();
     }
 
     drawPath(path) {
-        // TODO: desenhar o caminho final, do início ao objetivo.
+        if (!path || path.length === 0) {
+            return;
+        }
+
+        const colors = SearchVisualizer.COLORS;
+        const visibleCells = this.getVisiblePathLength(path);
+
+        push();
+        noFill();
+
+        // O contorno escuro deixa o caminho legível sobre qualquer terreno.
+        stroke(...colors.pathOutline);
+        strokeWeight(this.cellSize * 0.3);
+        this.drawPathSegments(path, visibleCells);
+
+        stroke(...colors.path);
+        strokeWeight(this.cellSize * 0.16);
+        this.drawPathSegments(path, visibleCells);
+
+        pop();
+    }
+
+    drawPathSegments(path, visibleCells) {
+        if (visibleCells === 1) {
+            const center = this.getCenter(path[0]);
+            point(center.x, center.y);
+            return;
+        }
+
+        for (let i = 1; i < visibleCells; i += 1) {
+            const from = this.getCenter(path[i - 1]);
+            const to = this.getCenter(path[i]);
+            line(from.x, from.y, to.x, to.y);
+        }
+    }
+
+    getVisiblePathLength(path) {
+        // O caminho é revelado do início ao objetivo, uma célula a cada poucos quadros.
+        const revealed = 1 + Math.floor(this.pathFrames / SearchVisualizer.PATH_FRAMES_PER_CELL);
+        return Math.min(path.length, revealed);
+    }
+
+    getCenter(cell) {
+        return {
+            x: cell.col * this.cellSize + this.cellSize / 2,
+            y: cell.row * this.cellSize + this.cellSize / 2
+        };
+    }
+
+    drawCell(cell, inset) {
+        rect(
+            cell.col * this.cellSize + inset,
+            cell.row * this.cellSize + inset,
+            this.cellSize - inset * 2,
+            this.cellSize - inset * 2
+        );
     }
 }
+
+SearchVisualizer.TRAIL_LENGTH = 12;
+SearchVisualizer.PATH_FRAMES_PER_CELL = 2;
+
+SearchVisualizer.COLORS = Object.freeze({
+    visited: Object.freeze([155, 89, 182]),
+    visitedAlpha: 100,
+    trailAlpha: 210,
+    frontier: Object.freeze([255, 140, 0, 200]),
+    frontierStroke: Object.freeze([150, 70, 0]),
+    current: Object.freeze([255, 255, 255]),
+    path: Object.freeze([255, 221, 0]),
+    pathOutline: Object.freeze([40, 40, 40, 220])
+});
 
 
 // ========================================
