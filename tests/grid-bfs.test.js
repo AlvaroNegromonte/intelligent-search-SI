@@ -103,6 +103,32 @@ test("Grid.getNeighbors filtra vizinhos que são obstáculos", () => {
     assert.ok(!filteredNeighbors.some(n => n.col === 2 && n.row === 1));
 });
 
+test("Grid.generateProcedural cria terrenos variados e garante caminho viável", () => {
+    const grid = new Grid(20, 15, 40);
+    grid.generateProcedural({ obstacleChance: 0.25, mudChance: 0.20, waterChance: 0.15 });
+
+    const startCell = grid.getCell(0, 0);
+    const goalCell = grid.getCell(19, 14);
+
+    // Start e Goal devem ser transitáveis (Areia)
+    assert.strictEqual(startCell.walkable, true);
+    assert.strictEqual(startCell.terrainType, Terrain.SAND);
+    assert.strictEqual(goalCell.walkable, true);
+    assert.strictEqual(goalCell.terrainType, Terrain.SAND);
+
+    // Deve existir caminho viável de (0,0) a (19,14)
+    assert.strictEqual(grid.isReachable(startCell, goalCell), true);
+
+    // Deve conter variedade de terrenos
+    const terrains = new Set();
+    for (let r = 0; r < grid.rows; r++) {
+        for (let c = 0; c < grid.cols; c++) {
+            terrains.add(grid.getCell(c, r).terrainType);
+        }
+    }
+    assert.ok(terrains.size > 1, "A grade gerada deve conter mais de um tipo de terreno");
+});
+
 // Resumo dos testes até o momento
 if (failed > 0) {
     console.error(`\nTestes finalizados: ${passed} passaram, ${failed} falharam.`);
