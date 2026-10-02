@@ -6,7 +6,8 @@ class Simulation {
 
         this.grid = new Grid(cols, rows, cellSize);
         this.agent = new Agent(this.grid.getCell(0, 0));
-        this.food = new Food(this.grid.getCell(cols - 1, rows - 1));
+        this.food = new Food(null);
+        this.food.relocate(this.grid, this.agent.position);
         this.ui = new UI();
         this.searchVisualizer = new SearchVisualizer(cellSize);
         this.search = null;
@@ -14,6 +15,17 @@ class Simulation {
         this.state = SimulationState.WAITING;
 
         this.ui.initialize();
+    }
+
+    generateNewMap() {
+        this.grid.generateProcedural();
+
+        const startCell = this.grid.getCell(0, 0);
+        this.agent.setPosition(startCell);
+        this.agent.clearPath();
+        this.food.relocate(this.grid, startCell);
+        this.search = null;
+        this.setState(SimulationState.WAITING);
     }
 
     update() {
@@ -51,10 +63,16 @@ class Simulation {
     }
 
     updateCollecting() {
-        // TODO: atualizar a pontuação, reposicionar a comida e voltar para WAITING.
+        // A comida permanece fixa neste cenário; coleta contínua fica para trabalho futuro.
     }
 
     startSearch() {
+        if (!this.food.position) {
+            return;
+        }
+
+        this.agent.setPosition(this.grid.getCell(0, 0));
+        this.agent.clearPath();
         const algorithmName = this.ui.getSelectedAlgorithm();
 
         this.search = this.createSearchAlgorithm(
