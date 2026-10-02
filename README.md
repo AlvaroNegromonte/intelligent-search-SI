@@ -73,9 +73,9 @@ O código-fonte continua em `src/` e no `sketch.js` da raiz. Faça as alteraçõ
 │   │   ├── SearchAlgorithm.js  # Contrato compartilhado das buscas
 │   │   ├── PriorityQueue.js    # Fila de prioridade baseada em array
 │   │   ├── Heuristics.js       # Distância de Manhattan
-│   │   ├── BFS.js              # Busca em largura (TODO)
-│   │   ├── DFS.js              # Busca em profundidade (TODO)
-│   │   ├── UniformCostSearch.js # Busca de custo uniforme (TODO)
+│   │   ├── BFS.js              # Busca em largura 
+│   │   ├── DFS.js              # Busca em profundidade 
+│   │   ├── UniformCostSearch.js # Busca de custo uniforme
 │   │   ├── GreedySearch.js     # Busca gulosa (TODO)
 │   │   └── AStar.js            # Busca A* (TODO)
 │   ├── agent/
@@ -83,8 +83,8 @@ O código-fonte continua em `src/` e no `sketch.js` da raiz. Faça as alteraçõ
 │   ├── entities/
 │   │   └── Food.js             # Posição e desenho da comida
 │   ├── ui/
-│   │   ├── UI.js              # Estrutura dos futuros controles
-│   │   └── SearchVisualizer.js # Visualização das buscas (TODO)
+│   │   ├── UI.js              # Estrutura dos futuros controles (TODO)
+│   │   └── SearchVisualizer.js # Visualização das buscas
 │   └── core/
 │       ├── SimulationState.js  # Estados da simulação
 │       └── Simulation.js       # Coordenação dos componentes
