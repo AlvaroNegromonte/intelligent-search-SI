@@ -42,9 +42,9 @@ class SearchVisualizer {
             // Os nós visitados mais recentemente ficam mais intensos,
             // formando um rastro que mostra o avanço da busca passo a passo.
             const recency = i >= trailStart ? (i - trailStart + 1) / trailLength : 0;
-            const alpha = colors.visitedAlpha + (colors.trailAlpha - colors.visitedAlpha) * recency;
+            const visitedOpacity = colors.visitedAlpha + (colors.trailAlpha - colors.visitedAlpha) * recency;
 
-            fill(...colors.visited, alpha);
+            fill(...colors.visited, visitedOpacity);
             this.drawCell(visited[i], 1);
         }
 
@@ -146,12 +146,12 @@ SearchVisualizer.TRAIL_LENGTH = 12;
 SearchVisualizer.PATH_FRAMES_PER_CELL = 2;
 
 SearchVisualizer.COLORS = Object.freeze({
-    visited: Object.freeze([155, 89, 182]),
-    visitedAlpha: 100,
-    trailAlpha: 210,
-    frontier: Object.freeze([255, 140, 0, 200]),
-    frontierStroke: Object.freeze([150, 70, 0]),
+    visited: Object.freeze([95, 55, 135]),
+    visitedAlpha: 120,
+    trailAlpha: 220,
+    frontier: Object.freeze([255, 130, 20, 225]),
+    frontierStroke: Object.freeze([130, 60, 0]),
     current: Object.freeze([255, 255, 255]),
-    path: Object.freeze([255, 221, 0]),
-    pathOutline: Object.freeze([40, 40, 40, 220])
+    path: Object.freeze([255, 225, 0]),
+    pathOutline: Object.freeze([35, 35, 35, 225])
 });

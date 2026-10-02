@@ -37,27 +37,27 @@ Terrain.TYPES = Object.freeze({
         cost: 10,
         speedMultiplier: 1,
         walkable: true,
-        color: Object.freeze([224, 196, 126])
+        color: Object.freeze([238, 220, 170])
     }),
     MUD: Object.freeze({
         label: "Atoleiro",
         cost: 50,
         speedMultiplier: 0.6,
         walkable: true,
-        color: Object.freeze([132, 94, 61])
+        color: Object.freeze([160, 115, 82])
     }),
     WATER: Object.freeze({
         label: "Água",
         cost: 100,
         speedMultiplier: 0.3,
         walkable: true,
-        color: Object.freeze([79, 151, 205])
+        color: Object.freeze([105, 170, 210])
     }),
     OBSTACLE: Object.freeze({
         label: "Obstáculo",
         cost: Infinity,
         speedMultiplier: 0,
         walkable: false,
-        color: Object.freeze([55, 55, 55])
+        color: Object.freeze([38, 42, 48])
     })
 });

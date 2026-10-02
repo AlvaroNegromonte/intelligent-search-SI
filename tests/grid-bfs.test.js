@@ -17,6 +17,8 @@ global.fill = () => {};
 global.rect = () => {};
 global.noStroke = () => {};
 global.circle = () => {};
+// Os testes de busca usam um campo constante; o Perlin real é validado no navegador.
+global.noise = () => 0.6;
 
 loadScript("src/world/Terrain.js");
 loadScript("src/world/Cell.js");
@@ -127,6 +129,88 @@ test("Grid.generateProcedural cria terrenos variados e garante caminho viável",
         }
     }
     assert.ok(terrains.size > 1, "A grade gerada deve conter mais de um tipo de terreno");
+});
+
+test("Grid classifica o campo Perlin pelos limites padrão sem argumentos", () => {
+    const originalNoise = global.noise;
+    const originalRandom = Math.random;
+    const samples = [0.1, 0.319, 0.32, 0.439, 0.44, 0.9];
+    let sampleIndex = 0;
+
+    try {
+        global.noise = () => samples[sampleIndex++];
+        Math.random = () => 0.9;
+        const grid = new Grid(6, 1, 40);
+        grid.generateProcedural();
+
+        assert.deepStrictEqual(grid.cells[0].map((cell) => cell.terrainType), [
+            Terrain.SAND, Terrain.WATER, Terrain.MUD,
+            Terrain.MUD, Terrain.SAND, Terrain.SAND
+        ]);
+    } finally {
+        global.noise = originalNoise;
+        Math.random = originalRandom;
+    }
+});
+
+test("Grid amostra coordenadas próximas com escala configurável e novos offsets", () => {
+    const originalNoise = global.noise;
+    const originalRandom = Math.random;
+    const samples = [];
+    let rollIndex = 0;
+
+    try {
+        global.noise = (sampleX, sampleY) => {
+            samples.push([sampleX, sampleY]);
+            return 0.6;
+        };
+        Math.random = () => (rollIndex++ % 100) / 100;
+        const grid = new Grid(3, 2, 40);
+        grid.generateProcedural({ obstacleChance: 0, noiseScale: 0.12 });
+        grid.generateProcedural({ obstacleChance: 0, noiseScale: 0.12 });
+
+        assert.strictEqual(samples.length, 12);
+        assert.ok(Math.abs(samples[1][0] - samples[0][0] - 0.12) < 1e-10);
+        assert.strictEqual(samples[1][1], samples[0][1]);
+        assert.strictEqual(samples[3][0], samples[0][0]);
+        assert.ok(Math.abs(samples[3][1] - samples[0][1] - 0.12) < 1e-10);
+        assert.notDeepStrictEqual(samples[6], samples[0]);
+    } finally {
+        global.noise = originalNoise;
+        Math.random = originalRandom;
+    }
+});
+
+test("Grid aceita opções antigas e prioriza os limiares explícitos", () => {
+    const originalNoise = global.noise;
+
+    try {
+        global.noise = () => 0.3;
+        const grid = new Grid(3, 1, 40);
+        grid.generateProcedural({ obstacleChance: 0, waterChance: 0.2, mudChance: 0.2 });
+        assert.strictEqual(grid.getCell(1, 0).terrainType, Terrain.MUD);
+        grid.generateProcedural({
+            obstacleChance: 0, waterChance: 0.2, mudChance: 0.2,
+            waterThreshold: 0.4, mudThreshold: 0.5
+        });
+        assert.strictEqual(grid.getCell(1, 0).terrainType, Terrain.WATER);
+        grid.generateProcedural({ obstacleChance: 0, waterChance: 0, mudChance: 0 });
+        assert.strictEqual(grid.getCell(1, 0).terrainType, Terrain.SAND);
+    } finally {
+        global.noise = originalNoise;
+    }
+});
+
+test("Grid mantém obstáculos independentes e abre caminho após tentativas esgotadas", () => {
+    const grid = new Grid(20, 15, 40);
+    grid.generateProcedural({ obstacleChance: 1, ensureSolvable: false });
+    assert.strictEqual(grid.getCell(1, 0).terrainType, Terrain.OBSTACLE);
+    assert.strictEqual(grid.isReachable(grid.getCell(0, 0), grid.getCell(19, 14)), false);
+
+    grid.generateProcedural({ obstacleChance: 1 });
+    assert.strictEqual(grid.isReachable(grid.getCell(0, 0), grid.getCell(19, 14)), true);
+    assert.strictEqual(grid.getCell(0, 0).terrainType, Terrain.SAND);
+    assert.strictEqual(grid.getCell(19, 14).terrainType, Terrain.SAND);
 });
 
 // 3. Testes de BFS

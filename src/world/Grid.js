@@ -78,10 +78,15 @@ class Grid {
     generateProcedural(options = {}) {
         const obstacleChance = options.obstacleChance === undefined || options.obstacleChance === null
             ? 0.15 : options.obstacleChance;
-        const mudChance = options.mudChance === undefined || options.mudChance === null
-            ? 0.15 : options.mudChance;
-        const waterChance = options.waterChance === undefined || options.waterChance === null
-            ? 0.10 : options.waterChance;
+        const noiseScale = options.noiseScale === undefined || options.noiseScale === null
+            ? 0.10 : options.noiseScale;
+        // As opções antigas continuam aceitas como limites/faixas do campo de ruído.
+        const waterThreshold = options.waterThreshold === undefined || options.waterThreshold === null
+            ? (options.waterChance === undefined || options.waterChance === null
+                ? 0.32 : options.waterChance) : options.waterThreshold;
+        const mudThreshold = options.mudThreshold === undefined || options.mudThreshold === null
+            ? waterThreshold + (options.mudChance === undefined || options.mudChance === null
+                ? 0.12 : options.mudChance) : options.mudThreshold;
         const ensureSolvable = options.ensureSolvable === undefined || options.ensureSolvable === null
             ? true : options.ensureSolvable;
 
@@ -94,17 +99,24 @@ class Grid {
 
         while (attempt < maxAttempts && !solvable) {
             attempt += 1;
+            const noiseOffsetX = Math.random() * 1000;
+            const noiseOffsetY = Math.random() * 1000;
 
             for (let row = 0; row < this.rows; row += 1) {
                 for (let col = 0; col < this.cols; col += 1) {
-                    const roll = Math.random();
+                    // Células próximas amostram valores parecidos, formando regiões.
+                    const terrainValue = noise(
+                        noiseOffsetX + col * noiseScale,
+                        noiseOffsetY + row * noiseScale
+                    );
 
-                    if (roll < obstacleChance) {
+                    // Obstáculos são sorteados separadamente do terreno contínuo.
+                    if (Math.random() < obstacleChance) {
                         this.setTerrain(col, row, Terrain.OBSTACLE);
-                    } else if (roll < obstacleChance + mudChance) {
-                        this.setTerrain(col, row, Terrain.MUD);
-                    } else if (roll < obstacleChance + mudChance + waterChance) {
+                    } else if (terrainValue < waterThreshold) {
                         this.setTerrain(col, row, Terrain.WATER);
+                    } else if (terrainValue < mudThreshold) {
+                        this.setTerrain(col, row, Terrain.MUD);
                     } else {
                         this.setTerrain(col, row, Terrain.SAND);
                     }
