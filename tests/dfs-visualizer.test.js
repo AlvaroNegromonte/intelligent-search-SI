@@ -2,6 +2,8 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 const assert = require("assert");
+// Os testes de busca usam um campo constante; o Perlin real é validado no navegador.
+global.noise = () => 0.6;
 
 // Load project scripts into the global context in dependency order, mimicking index.html
 function loadScript(relativePath) {

@@ -160,6 +160,9 @@ Ao adicionar um arquivo, carregue-o depois de suas dependências e antes de quem
 - As células são comparadas por identidade de objeto. Os mapas e as coleções de busca devem conter as instâncias de `Cell` existentes retornadas pela grade, e não cópias de coordenadas ou células recém-construídas.
 - Todas as propriedades de terreno devem ficar em `Terrain.js`. Adicione ou altere custo, velocidade, transitabilidade, rótulo ou cor do terreno nesse arquivo, em vez de espalhar condições específicas de terreno pelo código. As buscas devem consultar `cell.cost`, sem repetir os valores dos terrenos.
 - Obstáculos não são transitáveis, têm custo de busca infinito e devem ser excluídos por `Grid.getNeighbors()`.
+- `grid.generateProcedural()` usa o `noise(x, y)` do p5.js para formar regiões contínuas: valores abaixo de `0.32` geram água, de `0.32` até menos de `0.44` geram lama e os demais geram areia. A escala padrão é `0.10`; offsets aleatórios mudam a região amostrada a cada geração. As opções `noiseScale`, `waterThreshold` e `mudThreshold` permitem ajustar esses valores.
+- Os obstáculos são sorteados separadamente, com `obstacleChance: 0.15` por padrão. As extremidades viram areia e `ensureSolvable: true` mantém a verificação de alcance, até dez tentativas e a abertura de caminho quando necessário.
+- Por compatibilidade, `waterChance` ainda é aceito como alternativa a `waterThreshold`, e `mudChance` define a largura da faixa de lama acima desse limite (padrão `0.12`). Os novos limiares têm precedência. Essas opções antigas agora delimitam valores do Perlin, **não probabilidades nem percentuais garantidos de células**; para novos usos, prefira os limiares explícitos.
 - Um custo de movimento é o custo de entrar na célula vizinha. Essa convenção deve ser usada pela UCS e pela A*. Os valores atuais de terreno são:
 
 | Terreno | Custo | Multiplicador de velocidade | Transitável |
