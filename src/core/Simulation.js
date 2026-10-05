@@ -11,7 +11,12 @@ class Simulation {
         this.ui = new UI();
         this.searchVisualizer = new SearchVisualizer(cellSize);
         this.search = null;
+        this.searchAlgorithmName = null;
+        this.stepBudget = 0;
         this.score = 0;
+        this.message = "Gere um novo mapa ou inicie uma busca.";
+        // Resultado de cada algoritmo no mapa atual, para comparação.
+        this.results = new Map();
         this.state = SimulationState.WAITING;
 
         this.ui.initialize();
@@ -25,11 +30,24 @@ class Simulation {
         this.agent.clearPath();
         this.food.relocate(this.grid, startCell);
         this.search = null;
+        this.searchAlgorithmName = null;
+        this.results.clear();
+        this.message = "Novo mapa gerado. Escolha um algoritmo e inicie a busca.";
+        this.setState(SimulationState.WAITING);
+    }
+
+    resetSimulation() {
+        this.agent.setPosition(this.grid.getCell(0, 0));
+        this.agent.clearPath();
+        this.search = null;
+        this.searchAlgorithmName = null;
+        this.message = "";
         this.setState(SimulationState.WAITING);
     }
 
     update() {
         this.ui.update();
+        this.handleUIActions();
 
         if (this.state === SimulationState.WAITING) {
             this.updateWaiting();
@@ -42,24 +60,72 @@ class Simulation {
         }
     }
 
+    handleUIActions() {
+        for (const action of this.ui.consumeActions()) {
+            if (action === UI.ACTIONS.START) {
+                this.startSearch();
+            } else if (action === UI.ACTIONS.RESET) {
+                this.resetSimulation();
+            } else if (action === UI.ACTIONS.NEW_MAP) {
+                this.generateNewMap();
+            }
+        }
+    }
+
     updateWaiting() {
         // A simulação aguarda o usuário iniciar uma busca.
     }
 
     updateSearching() {
-        if (!this.search || this.search.isFinished()) {
+        if (!this.search) {
             return;
         }
 
-        this.search.step();
+        // A velocidade define quantos step() rodam por quadro; abaixo de 1x,
+        // o orçamento acumula e a busca avança um nó a cada poucos quadros.
+        this.stepBudget += this.ui.getSpeed();
 
-        // TODO: quando a busca terminar, enviar o caminho ao agente e mudar o estado.
+        while (this.stepBudget >= 1 && !this.search.isFinished()) {
+            this.search.step();
+            this.stepBudget -= 1;
+        }
+
+        if (this.search.isFinished()) {
+            this.handleSearchFinished();
+        }
+    }
+
+    handleSearchFinished() {
+        this.recordResult();
+
+        if (!this.search.found) {
+            this.message = "Nenhum caminho até a comida foi encontrado.";
+            this.setState(SimulationState.WAITING);
+            return;
+        }
+
+        this.agent.setPath(this.search.getPath());
+
+        if (this.agent.isMoving) {
+            this.message = "";
+            this.setState(SimulationState.MOVING);
+        } else {
+            this.collectFood();
+        }
     }
 
     updateMoving() {
-        this.agent.update();
+        this.agent.update(Agent.getFrameDelta() * this.ui.getSpeed());
 
-        // TODO: mudar para COLLECTING quando o agente alcançar a comida.
+        if (!this.agent.isMoving) {
+            this.collectFood();
+        }
+    }
+
+    collectFood() {
+        this.score += 1;
+        this.message = "Troque o algoritmo e inicie de novo para comparar no mesmo mapa.";
+        this.setState(SimulationState.COLLECTING);
     }
 
     updateCollecting() {
@@ -68,6 +134,7 @@ class Simulation {
 
     startSearch() {
         if (!this.food.position) {
+            this.message = "Não há comida alcançável neste mapa.";
             return;
         }
 
@@ -80,6 +147,9 @@ class Simulation {
             this.agent.position,
             this.food.position
         );
+        this.searchAlgorithmName = algorithmName;
+        this.stepBudget = 0;
+        this.message = "";
 
         this.setState(SimulationState.SEARCHING);
     }
@@ -108,12 +178,51 @@ class Simulation {
         throw new Error(`Algoritmo desconhecido: ${algorithmName}`);
     }
 
+    recordResult() {
+        const path = this.search.getPath();
+
+        this.results.set(this.searchAlgorithmName, {
+            found: this.search.found,
+            visited: this.search.visited.length,
+            pathSteps: Math.max(path.length - 1, 0),
+            pathCost: this.getPathCost(path)
+        });
+    }
+
+    getPathCost(path) {
+        // O custo de um passo é o custo de entrar na célula; o início não é cobrado.
+        let total = 0;
+
+        for (let i = 1; i < path.length; i += 1) {
+            total += path[i].cost;
+        }
+
+        return total;
+    }
+
+    getStatus() {
+        const search = this.search;
+        const path = search ? search.getPath() : [];
+
+        return {
+            state: this.state,
+            algorithm: this.searchAlgorithmName || this.ui.getSelectedAlgorithm(),
+            visited: search ? search.visited.length : 0,
+            frontier: search ? search.frontier.length : 0,
+            pathSteps: Math.max(path.length - 1, 0),
+            pathCost: this.getPathCost(path),
+            score: this.score,
+            message: this.message,
+            results: this.results
+        };
+    }
+
     display() {
         this.grid.display();
         this.searchVisualizer.display(this.search);
         this.food.display(this.grid.cellSize);
         this.agent.display(this.grid.cellSize);
-        this.ui.display();
+        this.ui.display(this.getStatus());
     }
 
     setState(state) {

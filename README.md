@@ -10,9 +10,18 @@ Os algoritmos planejados são:
 - Busca Gulosa pelo Melhor Primeiro
 - Busca A*
 
-Atualmente, o projeto fornece a grade, as definições de terreno, as entidades, os estados da simulação e as interfaces de busca. A execução da busca, a movimentação, os controles, a geração procedural de terreno e as sobreposições de visualização ainda estão estruturados com comentários `TODO`.
+Os cinco algoritmos, a geração procedural de terreno, a visualização passo a passo, o movimento do agente com velocidade dependente do terreno e o painel de controles estão implementados.
 
 Ao executar, aparece uma grade de 20 × 15 células de areia em um canvas de 800 × 600 pixels, com o agente no canto superior esquerdo e a comida sorteada em uma célula distante e alcançável. A simulação começa em `SimulationState.WAITING`, sem iniciar uma busca automaticamente.
+
+## Como usar
+
+1. Abra a página. À esquerda fica o mapa; à direita, o painel de controles.
+2. Clique em **Novo mapa** para gerar terreno com areia, lama, água e obstáculos. A comida (verde) é sorteada longe do agente (vermelho).
+3. Escolha o **Algoritmo** e clique em **Iniciar busca**. A busca é animada nó a nó: roxo são os visitados, laranja é a fronteira e amarelo é o caminho final.
+4. Quando a busca termina, o agente percorre o caminho. Ele anda mais devagar na lama (×0,6) e na água (×0,3).
+5. Troque o algoritmo e inicie de novo para comparar no mesmo mapa. A tabela **Comparação neste mapa** mostra nós visitados, passos e custo de cada algoritmo.
+6. **Velocidade** acelera ou desacelera a busca e o agente (0,25x a 4x). **Reiniciar** volta o agente ao início sem trocar o mapa.
 
 ## Executando o projeto
 
@@ -76,14 +85,14 @@ O código-fonte continua em `src/` e no `sketch.js` da raiz. Faça as alteraçõ
 │   │   ├── BFS.js              # Busca em largura 
 │   │   ├── DFS.js              # Busca em profundidade 
 │   │   ├── UniformCostSearch.js # Busca de custo uniforme
-│   │   ├── GreedySearch.js     # Busca gulosa (TODO)
-│   │   └── AStar.js            # Busca A* (TODO)
+│   │   ├── GreedySearch.js     # Busca gulosa
+│   │   └── AStar.js            # Busca A*
 │   ├── agent/
 │   │   └── Agent.js            # Posição, caminho e desenho do agente
 │   ├── entities/
 │   │   └── Food.js             # Posição e desenho da comida
 │   ├── ui/
-│   │   ├── UI.js              # Estrutura dos futuros controles (TODO)
+│   │   ├── UI.js              # Painel de controles, status e comparação
 │   │   └── SearchVisualizer.js # Visualização das buscas
 │   └── core/
 │       ├── SimulationState.js  # Estados da simulação
@@ -100,7 +109,7 @@ O código-fonte continua em `src/` e no `sketch.js` da raiz. Faça as alteraçõ
 
 As classes ficam organizadas por responsabilidade em `src/`, com uma classe por arquivo. `index.html`, `style.css` e `sketch.js` permanecem na raiz. `sketch.js` deve apenas criar a simulação em `setup()` e chamar `update()` e `display()` em `draw()`.
 
-`Simulation` coordena os componentes e delega a visualização dos dados da busca a `SearchVisualizer`. Os métodos de desenho dessa classe permanecem como `TODO`, permitindo trabalhar na visualização sem concentrar esse código em `Simulation.js`.
+`Simulation` coordena os componentes e delega a visualização dos dados da busca a `SearchVisualizer` e o painel lateral a `UI`.
 
 ## Como contribuir
 
@@ -184,6 +193,7 @@ Ao adicionar um arquivo, carregue-o depois de suas dependências e antes de quem
 - `reset()` deve restaurar todo o estado de busca compartilhado. As subclasses de algoritmos que possuam filas, pilhas, conjuntos ou mapas de custo adicionais também devem limpar essas estruturas.
 - A BFS usa ordenação FIFO; a DFS usa ordenação LIFO; a UCS prioriza o custo de entrada acumulado; a Busca Gulosa prioriza apenas a heurística; e a A* prioriza o custo de entrada acumulado somado à heurística.
 - A Busca Gulosa e a A* usam `Heuristics.manhattan(cell, goal)`. A distância de Manhattan corresponde ao contrato de movimento ortogonal da grade.
+- A A* multiplica a Manhattan pelo menor custo entre os terrenos transitáveis (`AStar.getMinimumStepCost()`, hoje 10, lido de `Terrain`). Como cada passo custa pelo menos esse valor, a heurística continua admissível e consistente, mas fica na mesma escala dos custos; sem isso, a A* se comportaria quase como a UCS. Em empates de `f = g + h`, a A* prefere o nó de menor `h`, sem alterar a ordem por `f`.
 - Se um custo acumulado menor alcançar uma célula na UCS ou na A*, atualize sua prioridade, `cameFrom` e `costSoFar`. Não trate a primeira descoberta como permanentemente ótima.
 
 ### Fila de prioridade
@@ -196,17 +206,19 @@ Ao adicionar um arquivo, carregue-o depois de suas dependências e antes de quem
 ### Agente, comida e simulação
 
 - `Agent.position` e `Food.position` são referências a objetos `Cell`, não coordenadas brutas.
-- A inicialização mantém a grade de areia e o estado `WAITING`, com uma comida sorteada. `simulation.generateNewMap()` gera terreno procedural, retorna o agente a `(0, 0)`, limpa seu caminho e movimento, sorteia a comida, remove a busca anterior e retorna a `WAITING`. Um futuro botão de novo mapa deve chamar esse método.
+- A inicialização mantém a grade de areia e o estado `WAITING`, com uma comida sorteada. `simulation.generateNewMap()` gera terreno procedural, retorna o agente a `(0, 0)`, limpa seu caminho e movimento, sorteia a comida, remove a busca anterior e a tabela de comparação e retorna a `WAITING`. O botão **Novo mapa** chama esse método; **Reiniciar** chama `resetSimulation()`, que volta o agente ao início e remove a busca, mantendo mapa, comida e comparação.
 - `food.relocate(grid, agentCell)` percorre os vizinhos transitáveis uma única vez e sorteia uma célula alcançável diferente do agente. A distância mínima de Manhattan é `Math.ceil(((grid.cols - 1) + (grid.rows - 1)) * 0.45)`: 15 na grade 20×15. Se não houver candidatas nessa distância, usa as células alcançáveis mais distantes. Evita as coordenadas anteriores quando há mais de uma candidata; se só houver uma, permite repeti-las. Qualquer terreno transitável pode receber comida, sem alterar custos.
 - Se não houver outra célula alcançável (por exemplo, uma grade 1×1), `relocate()` retorna `null` e deixa `Food.position` como `null`; nenhuma busca é iniciada sem objetivo. `Food.display()` já aceita ausência de posição.
 - `startSearch()` retorna o agente ao mesmo início `(0, 0)` e limpa seu caminho, mantendo terreno e comida. Trocar algoritmos, reiniciar ou concluir buscas não reposiciona a comida; somente um novo cenário seleciona outro objetivo.
-- `Agent.setPath(path)` recebe um array de células ordenado do início ao objetivo e define `isMoving` como verdadeiro se houver mais de uma célula. O avanço da posição em `Agent.update()` ainda é um `TODO`.
+- `Agent.setPath(path)` recebe um array de células ordenado do início ao objetivo e define `isMoving` como verdadeiro se houver mais de uma célula. `Agent.update(deltaMs)` avança o agente continuamente, a `Agent.BASE_SPEED` células por segundo multiplicadas pela velocidade do terreno da célula de entrada, e define `isMoving` como falso ao chegar à última célula.
 - O movimento do agente deve avançar gradualmente, em vez de consumir um caminho inteiro em um único quadro. A velocidade do terreno vem de `Terrain.getSpeedMultiplier()`.
 - A `Simulation` é responsável pela coordenação entre a grade, a busca, as entidades, a interface, a pontuação e o ciclo de vida. Os componentes não devem criar nem controlar uns aos outros diretamente.
 - `SearchVisualizer.display(search)` recebe a busca e delega o desenho de `visited`, `frontier` e `finalPath` aos seus métodos. Mantenha as sobreposições de busca nessa classe; `Simulation.display()` apenas coordena as chamadas de desenho dos componentes.
 - Os estados válidos do ciclo de vida são `WAITING`, `SEARCHING`, `MOVING` e `COLLECTING`. Use `simulation.setState()` para que estados inválidos sejam rejeitados.
 - A simulação deve começar em `WAITING`. Mantenha o início de buscas em `startSearch()`, acionado explicitamente; não inicie algoritmos incompletos no construtor ou em `setup()`.
-- Durante `SEARCHING`, `updateSearching()` chama um `step()` por quadro enquanto houver uma busca não finalizada. Ao implementar o tratamento do resultado, envie o caminho ao agente com `agent.setPath(path)` antes de entrar em `MOVING`; uma falha deve retornar a um estado sem movimento.
+- Durante `SEARCHING`, `updateSearching()` chama `step()` de acordo com a velocidade da interface: um por quadro em 1x, vários em velocidades maiores e um a cada poucos quadros abaixo de 1x. Ao terminar, registra o resultado na comparação; com sucesso, envia o caminho ao agente com `agent.setPath(path)` e entra em `MOVING`; uma falha volta a `WAITING`.
+- Durante `MOVING`, o agente recebe o tempo do quadro multiplicado pela velocidade. Quando `agent.isMoving` fica falso, a simulação soma um ponto e entra em `COLLECTING`.
+- A `UI` não chama a `Simulation`: os botões enfileiram ações (`UI.ACTIONS`), que a simulação consome com `ui.consumeActions()` no início de `update()`. A `Simulation` envia os dados exibidos com `ui.display(simulation.getStatus())`.
 - A coleta contínua fica para trabalho futuro. Alcançar a comida não deve gerar outro objetivo nem reposicioná-la automaticamente neste modo de comparação.
 - `Simulation` e `UI` devem usar o contrato público da busca, sem depender de `queue`, `stack`, `priorityQueue` ou `costSoFar`.
 - Mantenha as mudanças de estado nos métodos de atualização e a renderização nos métodos `display()`. O código de desenho não deve avançar a simulação.
@@ -227,7 +239,7 @@ Ao adicionar um arquivo, carregue-o depois de suas dependências e antes de quem
 - Use `PascalCase` para classes e seus nomes de arquivo, `camelCase` para variáveis e métodos e nomes em letras maiúsculas para identificadores fixos, como `SimulationState.WAITING`.
 - Prefira métodos pequenos e focados e mantenha as chamadas de desenho do p5.js dentro de métodos voltados à exibição.
 - Use nomes diretos, como `getNeighbors()`, `setPath()` e `updateSearching()`, e comentários curtos que expliquem decisões. Preserve `TODOs` das funcionalidades fora do escopo da contribuição.
-- Coloque futuros testes automatizados em um diretório `tests/` na raiz e nomeie-os como `*.test.js`. Não adicione um framework de testes, a menos que o repositório adote um deliberadamente.
+- Coloque testes automatizados em `tests/` e nomeie-os como `*.test.js`. Eles são opcionais e rodam com `node tests/<arquivo>.test.js`, sem dependências; a aplicação continua sem Node.js. Não adicione um framework de testes, a menos que o repositório adote um deliberadamente.
 
 Antes de enviar uma alteração, execute:
 
