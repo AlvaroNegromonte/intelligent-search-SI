@@ -42,28 +42,28 @@ Terrain.TYPES = Object.freeze({
         cost: 10,
         speedMultiplier: 1,
         walkable: true,
-        color: Object.freeze([224, 196, 126])
+        color: Object.freeze([238, 220, 170])
     }),
     MUD: Object.freeze({
         label: "Atoleiro",
         cost: 50,
         speedMultiplier: 0.6,
         walkable: true,
-        color: Object.freeze([132, 94, 61])
+        color: Object.freeze([160, 115, 82])
     }),
     WATER: Object.freeze({
         label: "Água",
         cost: 100,
         speedMultiplier: 0.3,
         walkable: true,
-        color: Object.freeze([79, 151, 205])
+        color: Object.freeze([105, 170, 210])
     }),
     OBSTACLE: Object.freeze({
         label: "Obstáculo",
         cost: Infinity,
         speedMultiplier: 0,
         walkable: false,
-        color: Object.freeze([55, 55, 55])
+        color: Object.freeze([38, 42, 48])
     })
 });
 
@@ -205,10 +205,15 @@ class Grid {
     generateProcedural(options = {}) {
         const obstacleChance = options.obstacleChance === undefined || options.obstacleChance === null
             ? 0.15 : options.obstacleChance;
-        const mudChance = options.mudChance === undefined || options.mudChance === null
-            ? 0.15 : options.mudChance;
-        const waterChance = options.waterChance === undefined || options.waterChance === null
-            ? 0.10 : options.waterChance;
+        const noiseScale = options.noiseScale === undefined || options.noiseScale === null
+            ? 0.10 : options.noiseScale;
+        // As opções antigas continuam aceitas como limites/faixas do campo de ruído.
+        const waterThreshold = options.waterThreshold === undefined || options.waterThreshold === null
+            ? (options.waterChance === undefined || options.waterChance === null
+                ? 0.32 : options.waterChance) : options.waterThreshold;
+        const mudThreshold = options.mudThreshold === undefined || options.mudThreshold === null
+            ? waterThreshold + (options.mudChance === undefined || options.mudChance === null
+                ? 0.12 : options.mudChance) : options.mudThreshold;
         const ensureSolvable = options.ensureSolvable === undefined || options.ensureSolvable === null
             ? true : options.ensureSolvable;
 
@@ -221,17 +226,24 @@ class Grid {
 
         while (attempt < maxAttempts && !solvable) {
             attempt += 1;
+            const noiseOffsetX = Math.random() * 1000;
+            const noiseOffsetY = Math.random() * 1000;
 
             for (let row = 0; row < this.rows; row += 1) {
                 for (let col = 0; col < this.cols; col += 1) {
-                    const roll = Math.random();
+                    // Células próximas amostram valores parecidos, formando regiões.
+                    const terrainValue = noise(
+                        noiseOffsetX + col * noiseScale,
+                        noiseOffsetY + row * noiseScale
+                    );
 
-                    if (roll < obstacleChance) {
+                    // Obstáculos são sorteados separadamente do terreno contínuo.
+                    if (Math.random() < obstacleChance) {
                         this.setTerrain(col, row, Terrain.OBSTACLE);
-                    } else if (roll < obstacleChance + mudChance) {
-                        this.setTerrain(col, row, Terrain.MUD);
-                    } else if (roll < obstacleChance + mudChance + waterChance) {
+                    } else if (terrainValue < waterThreshold) {
                         this.setTerrain(col, row, Terrain.WATER);
+                    } else if (terrainValue < mudThreshold) {
+                        this.setTerrain(col, row, Terrain.MUD);
                     } else {
                         this.setTerrain(col, row, Terrain.SAND);
                     }
@@ -667,12 +679,57 @@ class GreedySearch extends SearchAlgorithm {
     constructor(grid, start, goal) {
         super(grid, start, goal);
         this.priorityQueue = new PriorityQueue();
+        this.discovered = new Set();
+
+        this.init();
+    }
+
+    init() {
+        if (this.start) {
+            this.discovered.add(this.start);
+            this.priorityQueue.enqueue(this.start, Heuristics.manhattan(this.start, this.goal));
+            this.frontier = this.priorityQueue.toArray();
+        }
     }
 
     step() {
-        // TODO: retirar somente o nó com menor heurística Manhattan.
-        // TODO: adicionar vizinhos usando Heuristics.manhattan(vizinho, goal).
-        // TODO: finalizar ao encontrar o objetivo ou esvaziar a fronteira.
+        if (this.finished) {
+            return;
+        }
+
+        if (this.priorityQueue.isEmpty()) {
+            this.finish(false);
+            return;
+        }
+
+        // A gulosa ignora o custo acumulado: expande o nó que parece mais perto do objetivo.
+        const current = this.priorityQueue.dequeue();
+        this.visited.push(current);
+
+        if (current === this.goal) {
+            this.frontier = this.priorityQueue.toArray();
+            this.finish(true);
+            return;
+        }
+
+        const neighbors = this.grid.getNeighbors(current);
+
+        for (const neighbor of neighbors) {
+            if (!this.discovered.has(neighbor)) {
+                this.discovered.add(neighbor);
+                this.cameFrom.set(neighbor, current);
+                this.priorityQueue.enqueue(neighbor, Heuristics.manhattan(neighbor, this.goal));
+            }
+        }
+
+        this.frontier = this.priorityQueue.toArray();
+    }
+
+    reset() {
+        super.reset();
+        this.priorityQueue.clear();
+        this.discovered = new Set();
+        this.init();
     }
 }
 
@@ -704,21 +761,30 @@ class Agent {
         this.path = [];
         this.currentPathIndex = 0;
         this.isMoving = false;
+        // Fração (0 a 1) já percorrida entre a célula atual e a próxima do caminho.
+        this.stepProgress = 0;
     }
 
     setPosition(cell) {
         this.position = cell;
+        this.stepProgress = 0;
     }
 
     setPath(path) {
         this.path = path;
         this.currentPathIndex = 0;
+        this.stepProgress = 0;
         this.isMoving = path.length > 1;
+
+        if (path.length > 0) {
+            this.position = path[0];
+        }
     }
 
     clearPath() {
         this.path = [];
         this.currentPathIndex = 0;
+        this.stepProgress = 0;
         this.isMoving = false;
     }
 
@@ -730,10 +796,50 @@ class Agent {
         return Terrain.getSpeedMultiplier(this.position.terrainType);
     }
 
-    update() {
-        // TODO: avançar pelo caminho aos poucos, respeitando o tempo entre frames.
-        // TODO: usar o multiplicador do terreno para definir a velocidade.
-        // TODO: encerrar o movimento ao chegar à última célula do caminho.
+    getNextCell() {
+        return this.path[this.currentPathIndex + 1] || null;
+    }
+
+    hasReachedEnd() {
+        return this.path.length > 0 && this.currentPathIndex === this.path.length - 1;
+    }
+
+    update(deltaMs = Agent.getFrameDelta()) {
+        if (!this.isMoving) {
+            return;
+        }
+
+        let remainingSeconds = Math.min(deltaMs, Agent.MAX_FRAME_DELTA_MS) / 1000;
+
+        while (remainingSeconds > 0 && this.isMoving) {
+            const nextCell = this.getNextCell();
+
+            // A velocidade vem do terreno em que o agente está entrando,
+            // coerente com o custo de entrada usado pelas buscas.
+            const multiplier = Terrain.getSpeedMultiplier(nextCell.terrainType);
+            const cellsPerSecond = Agent.BASE_SPEED * multiplier;
+
+            if (cellsPerSecond <= 0) {
+                this.isMoving = false;
+                return;
+            }
+
+            const secondsToNextCell = (1 - this.stepProgress) / cellsPerSecond;
+
+            if (remainingSeconds < secondsToNextCell) {
+                this.stepProgress += remainingSeconds * cellsPerSecond;
+                return;
+            }
+
+            remainingSeconds -= secondsToNextCell;
+            this.currentPathIndex += 1;
+            this.position = nextCell;
+            this.stepProgress = 0;
+
+            if (this.hasReachedEnd()) {
+                this.isMoving = false;
+            }
+        }
     }
 
     display(cellSize) {
@@ -741,14 +847,34 @@ class Agent {
             return;
         }
 
-        const centerX = this.position.col * cellSize + cellSize / 2;
-        const centerY = this.position.row * cellSize + cellSize / 2;
+        let col = this.position.col;
+        let row = this.position.row;
+        const nextCell = this.isMoving ? this.getNextCell() : null;
+
+        // Interpola entre as células para o movimento parecer contínuo.
+        if (nextCell) {
+            col += (nextCell.col - col) * this.stepProgress;
+            row += (nextCell.row - row) * this.stepProgress;
+        }
+
+        const centerX = col * cellSize + cellSize / 2;
+        const centerY = row * cellSize + cellSize / 2;
 
         noStroke();
         fill(220, 50, 50);
         circle(centerX, centerY, cellSize * 0.55);
     }
+
+    static getFrameDelta() {
+        // deltaTime é fornecido pelo p5.js; fora do navegador assume 60 FPS.
+        return typeof deltaTime === "number" ? deltaTime : 1000 / 60;
+    }
 }
+
+// Células por segundo em areia; lama e água reduzem pelo multiplicador do terreno.
+Agent.BASE_SPEED = 5;
+// Evita saltos de várias células quando a aba fica em segundo plano.
+Agent.MAX_FRAME_DELTA_MS = 100;
 
 
 // ========================================
@@ -763,8 +889,64 @@ class Food {
         this.position = cell;
     }
 
-    relocate(grid) {
-        // TODO: escolher uma célula transitável diferente da posição do agente.
+    relocate(grid, agentCell) {
+        const previousPosition = this.position;
+        const maxDistance = (grid.cols - 1) + (grid.rows - 1);
+        const minimumDistance = Math.ceil(maxDistance * 0.45);
+        const reachableCells = [];
+        const pendingCells = [];
+        const seen = new Set();
+
+        if (agentCell && agentCell.walkable) {
+            pendingCells.push(agentCell);
+            seen.add(agentCell);
+        }
+
+        // Uma única travessia encontra o componente alcançável do agente.
+        while (pendingCells.length > 0) {
+            const currentCell = pendingCells.pop();
+
+            if (currentCell !== agentCell) {
+                reachableCells.push(currentCell);
+            }
+
+            for (const neighbor of grid.getNeighbors(currentCell)) {
+                if (neighbor.walkable && !seen.has(neighbor)) {
+                    seen.add(neighbor);
+                    pendingCells.push(neighbor);
+                }
+            }
+        }
+
+        const distanceFromAgent = (cell) => Math.abs(cell.col - agentCell.col)
+            + Math.abs(cell.row - agentCell.row);
+        let candidates = reachableCells.filter((cell) => distanceFromAgent(cell) >= minimumDistance);
+
+        // Se a distância preferida for impossível, use as células mais distantes.
+        if (candidates.length === 0) {
+            let farthestDistance = 0;
+
+            for (const cell of reachableCells) {
+                farthestDistance = Math.max(farthestDistance, distanceFromAgent(cell));
+            }
+
+            candidates = reachableCells.filter((cell) => distanceFromAgent(cell) === farthestDistance);
+        }
+
+        if (previousPosition && candidates.length > 1) {
+            candidates = candidates.filter((cell) => cell.col !== previousPosition.col
+                || cell.row !== previousPosition.row);
+        }
+
+        // Uma grade sem outra célula alcançável não tem um objetivo válido.
+        if (candidates.length === 0) {
+            this.position = null;
+            return null;
+        }
+
+        const selectedCell = candidates[Math.floor(Math.random() * candidates.length)];
+        this.setPosition(selectedCell);
+        return selectedCell;
     }
 
     display(cellSize) {
@@ -867,9 +1049,9 @@ class SearchVisualizer {
             // Os nós visitados mais recentemente ficam mais intensos,
             // formando um rastro que mostra o avanço da busca passo a passo.
             const recency = i >= trailStart ? (i - trailStart + 1) / trailLength : 0;
-            const alpha = colors.visitedAlpha + (colors.trailAlpha - colors.visitedAlpha) * recency;
+            const visitedOpacity = colors.visitedAlpha + (colors.trailAlpha - colors.visitedAlpha) * recency;
 
-            fill(...colors.visited, alpha);
+            fill(...colors.visited, visitedOpacity);
             this.drawCell(visited[i], 1);
         }
 
@@ -971,14 +1153,14 @@ SearchVisualizer.TRAIL_LENGTH = 12;
 SearchVisualizer.PATH_FRAMES_PER_CELL = 2;
 
 SearchVisualizer.COLORS = Object.freeze({
-    visited: Object.freeze([155, 89, 182]),
-    visitedAlpha: 100,
-    trailAlpha: 210,
-    frontier: Object.freeze([255, 140, 0, 200]),
-    frontierStroke: Object.freeze([150, 70, 0]),
+    visited: Object.freeze([95, 55, 135]),
+    visitedAlpha: 120,
+    trailAlpha: 220,
+    frontier: Object.freeze([255, 130, 20, 225]),
+    frontierStroke: Object.freeze([130, 60, 0]),
     current: Object.freeze([255, 255, 255]),
-    path: Object.freeze([255, 221, 0]),
-    pathOutline: Object.freeze([40, 40, 40, 220])
+    path: Object.freeze([255, 225, 0]),
+    pathOutline: Object.freeze([35, 35, 35, 225])
 });
 
 
@@ -1004,7 +1186,8 @@ class Simulation {
 
         this.grid = new Grid(cols, rows, cellSize);
         this.agent = new Agent(this.grid.getCell(0, 0));
-        this.food = new Food(this.grid.getCell(cols - 1, rows - 1));
+        this.food = new Food(null);
+        this.food.relocate(this.grid, this.agent.position);
         this.ui = new UI();
         this.searchVisualizer = new SearchVisualizer(cellSize);
         this.search = null;
@@ -1012,6 +1195,17 @@ class Simulation {
         this.state = SimulationState.WAITING;
 
         this.ui.initialize();
+    }
+
+    generateNewMap() {
+        this.grid.generateProcedural();
+
+        const startCell = this.grid.getCell(0, 0);
+        this.agent.setPosition(startCell);
+        this.agent.clearPath();
+        this.food.relocate(this.grid, startCell);
+        this.search = null;
+        this.setState(SimulationState.WAITING);
     }
 
     update() {
@@ -1049,10 +1243,16 @@ class Simulation {
     }
 
     updateCollecting() {
-        // TODO: atualizar a pontuação, reposicionar a comida e voltar para WAITING.
+        // A comida permanece fixa neste cenário; coleta contínua fica para trabalho futuro.
     }
 
     startSearch() {
+        if (!this.food.position) {
+            return;
+        }
+
+        this.agent.setPosition(this.grid.getCell(0, 0));
+        this.agent.clearPath();
         const algorithmName = this.ui.getSelectedAlgorithm();
 
         this.search = this.createSearchAlgorithm(
