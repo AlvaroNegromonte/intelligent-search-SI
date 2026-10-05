@@ -742,14 +742,98 @@ class AStar extends SearchAlgorithm {
         super(grid, start, goal);
         this.priorityQueue = new PriorityQueue();
         this.costSoFar = new Map();
+        this.closed = new Set();
+        this.minimumStepCost = AStar.getMinimumStepCost();
+
+        this.init();
+    }
+
+    init() {
+        if (this.start) {
+            this.costSoFar.set(this.start, 0);
+            this.priorityQueue.enqueue(this.start, this.getPriority(this.start, 0));
+            this.frontier = this.priorityQueue.toArray();
+        }
+    }
+
+    heuristic(cell) {
+        // Manhattan conta passos; cada passo custa pelo menos o terreno mais barato.
+        // Multiplicar por esse custo mantém a heurística admissível e consistente,
+        // mas na mesma escala dos custos, o que deixa a A* bem mais focada que a UCS.
+        return Heuristics.manhattan(cell, this.goal) * this.minimumStepCost;
+    }
+
+    getPriority(cell, costToCell) {
+        const estimate = this.heuristic(cell);
+
+        // Em empates de f = g + h, prefere o nó mais perto do objetivo.
+        // O desempate é menor que qualquer diferença de custo, então não muda a ordem por f.
+        return costToCell + estimate + estimate * AStar.TIE_BREAK;
     }
 
     step() {
-        // TODO: retirar somente o nó com menor custo total estimado.
-        // TODO: somar custo acumulado e Heuristics.manhattan(vizinho, goal).
-        // TODO: atualizar fronteira, cameFrom e costSoFar quando houver melhora.
+        if (this.finished) {
+            return;
+        }
+
+        if (this.priorityQueue.isEmpty()) {
+            this.finish(false);
+            return;
+        }
+
+        const current = this.priorityQueue.dequeue();
+        this.closed.add(current);
+        this.visited.push(current);
+
+        if (current === this.goal) {
+            this.frontier = this.priorityQueue.toArray();
+            this.finish(true);
+            return;
+        }
+
+        const currentCost = this.costSoFar.get(current);
+        const neighbors = this.grid.getNeighbors(current);
+
+        for (const neighbor of neighbors) {
+            // Com heurística consistente, um nó expandido já tem custo mínimo.
+            if (this.closed.has(neighbor)) {
+                continue;
+            }
+
+            const newCost = currentCost + neighbor.cost;
+
+            if (!this.costSoFar.has(neighbor) || newCost < this.costSoFar.get(neighbor)) {
+                this.costSoFar.set(neighbor, newCost);
+                this.cameFrom.set(neighbor, current);
+                this.priorityQueue.enqueue(neighbor, this.getPriority(neighbor, newCost));
+            }
+        }
+
+        this.frontier = this.priorityQueue.toArray();
+    }
+
+    reset() {
+        super.reset();
+        this.priorityQueue.clear();
+        this.costSoFar.clear();
+        this.closed = new Set();
+        this.init();
+    }
+
+    static getMinimumStepCost() {
+        let minimum = Infinity;
+
+        for (const type of Object.keys(Terrain.TYPES)) {
+            if (Terrain.isWalkable(type)) {
+                minimum = Math.min(minimum, Terrain.getCost(type));
+            }
+        }
+
+        return minimum;
     }
 }
+
+AStar.TIE_BREAK = 1e-6;
 
 
 // ========================================
@@ -971,17 +1055,131 @@ class UI {
     constructor() {
         this.availableAlgorithms = ["BFS", "DFS", "UCS", "GREEDY", "ASTAR"];
         this.selectedAlgorithm = "BFS";
+        this.speed = 1;
+        this.pendingActions = [];
+        this.controls = null;
+        this.lastStatusHtml = "";
     }
 
     initialize() {
-        // TODO: criar o select de algoritmos.
-        // TODO: criar os botões de iniciar e reiniciar.
-        // TODO: criar o controle de velocidade da simulação.
+        // Fora do navegador (testes em Node) não há funções de DOM do p5.js.
+        if (typeof createDiv !== "function") {
+            return;
+        }
+
+        const panel = createDiv();
+        panel.addClass("panel");
+        createElement("h1", "Busca Inteligente em Grid").parent(panel);
+
+        this.controls = {
+            algorithmSelect: this.createAlgorithmSelect(panel),
+            speedSlider: null,
+            speedLabel: null,
+            status: null
+        };
+
+        this.createActionButtons(panel);
+        this.createSpeedControl(panel);
+
+        this.controls.status = createDiv();
+        this.controls.status.addClass("status");
+        this.controls.status.parent(panel);
+
+        this.createLegend(panel);
+    }
+
+    createAlgorithmSelect(panel) {
+        const group = this.createGroup(panel, "Algoritmo");
+        const select = createSelect();
+
+        for (const name of this.availableAlgorithms) {
+            select.option(UI.ALGORITHM_LABELS[name], name);
+        }
+
+        select.selected(this.selectedAlgorithm);
+        select.parent(group);
+        return select;
+    }
+
+    createActionButtons(panel) {
+        const group = createDiv();
+        group.addClass("buttons");
+        group.parent(panel);
+
+        const buttons = [
+            { label: "Iniciar busca", action: UI.ACTIONS.START, primary: true },
+            { label: "Reiniciar", action: UI.ACTIONS.RESET },
+            { label: "Novo mapa", action: UI.ACTIONS.NEW_MAP }
+        ];
+
+        for (const definition of buttons) {
+            const button = createButton(definition.label);
+            button.parent(group);
+            button.mousePressed(() => this.requestAction(definition.action));
+
+            if (definition.primary) {
+                button.addClass("primary");
+            }
+        }
+    }
+
+    createSpeedControl(panel) {
+        const group = this.createGroup(panel, "Velocidade");
+        const row = createDiv();
+        row.addClass("speed");
+        row.parent(group);
+
+        this.controls.speedSlider = createSlider(UI.MIN_SPEED, UI.MAX_SPEED, this.speed, UI.SPEED_STEP);
+        this.controls.speedSlider.parent(row);
+
+        this.controls.speedLabel = createSpan(this.formatSpeed(this.speed));
+        this.controls.speedLabel.parent(row);
+    }
+
+    createLegend(panel) {
+        const legend = createDiv();
+        legend.addClass("legend");
+        legend.parent(panel);
+
+        let html = "<h2>Terrenos</h2><ul>";
+
+        for (const properties of Object.values(Terrain.TYPES)) {
+            const cost = properties.walkable ? `custo ${properties.cost}` : "intransponível";
+            html += this.legendItem(properties.color, `${properties.label} (${cost})`);
+        }
+
+        const colors = SearchVisualizer.COLORS;
+        html += "</ul><h2>Busca</h2><ul>";
+        html += this.legendItem(colors.visited, "Visitados");
+        html += this.legendItem(colors.frontier, "Fronteira");
+        html += this.legendItem(colors.path, "Caminho final");
+        html += this.legendItem(UI.AGENT_COLOR, "Agente");
+        html += this.legendItem(UI.FOOD_COLOR, "Comida");
+        html += "</ul>";
+
+        legend.html(html);
+    }
+
+    createGroup(panel, title) {
+        const group = createDiv();
+        group.addClass("group");
+        group.parent(panel);
+        createSpan(title).addClass("group-title").parent(group);
+        return group;
+    }
+
+    legendItem(color, label) {
+        return `<li><span class="swatch" style="background: rgb(${color[0]}, ${color[1]}, ${color[2]})"></span>${label}</li>`;
     }
 
     setSelectedAlgorithm(name) {
         if (this.availableAlgorithms.includes(name)) {
             this.selectedAlgorithm = name;
+
+            if (this.controls) {
+                this.controls.algorithmSelect.selected(name);
+            }
+
             return true;
         }
 
@@ -992,14 +1190,127 @@ class UI {
         return this.selectedAlgorithm;
     }
 
-    update() {
-        // TODO: ler as interações dos controles quando eles forem criados.
+    getSpeed() {
+        return this.speed;
     }
 
-    display() {
-        // TODO: exibir informações e controles da simulação.
+    requestAction(action) {
+        this.pendingActions.push(action);
+    }
+
+    consumeActions() {
+        const actions = this.pendingActions;
+        this.pendingActions = [];
+        return actions;
+    }
+
+    update() {
+        if (!this.controls) {
+            return;
+        }
+
+        const selected = this.controls.algorithmSelect.value();
+
+        if (this.availableAlgorithms.includes(selected)) {
+            this.selectedAlgorithm = selected;
+        }
+
+        this.speed = Number(this.controls.speedSlider.value());
+    }
+
+    display(status) {
+        if (!this.controls || !status) {
+            return;
+        }
+
+        this.controls.speedLabel.html(this.formatSpeed(this.speed));
+
+        // Só reescreve o painel quando algo muda, para não refazer o DOM a cada quadro.
+        const html = this.buildStatusHtml(status);
+
+        if (html !== this.lastStatusHtml) {
+            this.controls.status.html(html);
+            this.lastStatusHtml = html;
+        }
+    }
+
+    buildStatusHtml(status) {
+        let html = `<p class="state state-${status.state.toLowerCase()}">${UI.STATE_LABELS[status.state]}</p>`;
+
+        if (status.message) {
+            html += `<p class="message">${status.message}</p>`;
+        }
+
+        html += "<dl>";
+        html += `<dt>Algoritmo</dt><dd>${UI.ALGORITHM_LABELS[status.algorithm]}</dd>`;
+        html += `<dt>Nós visitados</dt><dd>${status.visited}</dd>`;
+        html += `<dt>Fronteira</dt><dd>${status.frontier}</dd>`;
+        html += `<dt>Passos do caminho</dt><dd>${status.pathSteps}</dd>`;
+        html += `<dt>Custo do caminho</dt><dd>${status.pathCost}</dd>`;
+        html += `<dt>Comidas coletadas</dt><dd>${status.score}</dd>`;
+        html += "</dl>";
+
+        return html + this.buildResultsHtml(status.results);
+    }
+
+    buildResultsHtml(results) {
+        if (!results || results.size === 0) {
+            return "";
+        }
+
+        let html = "<h2>Comparação neste mapa</h2><table><thead><tr>";
+        html += "<th>Algoritmo</th><th>Visitados</th><th>Passos</th><th>Custo</th>";
+        html += "</tr></thead><tbody>";
+
+        for (const name of this.availableAlgorithms) {
+            const result = results.get(name);
+
+            if (!result) {
+                continue;
+            }
+
+            const steps = result.found ? result.pathSteps : "—";
+            const cost = result.found ? result.pathCost : "sem caminho";
+            html += `<tr><td>${name === "ASTAR" ? "A*" : name}</td><td>${result.visited}</td>`;
+            html += `<td>${steps}</td><td>${cost}</td></tr>`;
+        }
+
+        return html + "</tbody></table>";
+    }
+
+    formatSpeed(speed) {
+        return `${speed}x`;
     }
 }
+
+UI.ACTIONS = Object.freeze({
+    START: "START",
+    RESET: "RESET",
+    NEW_MAP: "NEW_MAP"
+});
+
+UI.ALGORITHM_LABELS = Object.freeze({
+    BFS: "Busca em Largura (BFS)",
+    DFS: "Busca em Profundidade (DFS)",
+    UCS: "Custo Uniforme (UCS)",
+    GREEDY: "Gulosa (Melhor Primeiro)",
+    ASTAR: "A*"
+});
+
+UI.STATE_LABELS = Object.freeze({
+    WAITING: "Aguardando",
+    SEARCHING: "Buscando…",
+    MOVING: "Agente a caminho da comida",
+    COLLECTING: "Comida alcançada!"
+});
+
+UI.MIN_SPEED = 0.25;
+UI.MAX_SPEED = 4;
+UI.SPEED_STEP = 0.25;
+
+// Mesmas cores usadas em Agent.display() e Food.display().
+UI.AGENT_COLOR = Object.freeze([220, 50, 50]);
+UI.FOOD_COLOR = Object.freeze([60, 170, 75]);
 
 
 // ========================================
@@ -1191,7 +1502,12 @@ class Simulation {
         this.ui = new UI();
         this.searchVisualizer = new SearchVisualizer(cellSize);
         this.search = null;
+        this.searchAlgorithmName = null;
+        this.stepBudget = 0;
         this.score = 0;
+        this.message = "Gere um novo mapa ou inicie uma busca.";
+        // Resultado de cada algoritmo no mapa atual, para comparação.
+        this.results = new Map();
         this.state = SimulationState.WAITING;
 
         this.ui.initialize();
@@ -1205,11 +1521,24 @@ class Simulation {
         this.agent.clearPath();
         this.food.relocate(this.grid, startCell);
         this.search = null;
+        this.searchAlgorithmName = null;
+        this.results.clear();
+        this.message = "Novo mapa gerado. Escolha um algoritmo e inicie a busca.";
+        this.setState(SimulationState.WAITING);
+    }
+
+    resetSimulation() {
+        this.agent.setPosition(this.grid.getCell(0, 0));
+        this.agent.clearPath();
+        this.search = null;
+        this.searchAlgorithmName = null;
+        this.message = "";
         this.setState(SimulationState.WAITING);
     }
 
     update() {
         this.ui.update();
+        this.handleUIActions();
 
         if (this.state === SimulationState.WAITING) {
             this.updateWaiting();
@@ -1222,24 +1551,72 @@ class Simulation {
         }
     }
 
+    handleUIActions() {
+        for (const action of this.ui.consumeActions()) {
+            if (action === UI.ACTIONS.START) {
+                this.startSearch();
+            } else if (action === UI.ACTIONS.RESET) {
+                this.resetSimulation();
+            } else if (action === UI.ACTIONS.NEW_MAP) {
+                this.generateNewMap();
+            }
+        }
+    }
+
     updateWaiting() {
         // A simulação aguarda o usuário iniciar uma busca.
     }
 
     updateSearching() {
-        if (!this.search || this.search.isFinished()) {
+        if (!this.search) {
             return;
         }
 
-        this.search.step();
+        // A velocidade define quantos step() rodam por quadro; abaixo de 1x,
+        // o orçamento acumula e a busca avança um nó a cada poucos quadros.
+        this.stepBudget += this.ui.getSpeed();
 
-        // TODO: quando a busca terminar, enviar o caminho ao agente e mudar o estado.
+        while (this.stepBudget >= 1 && !this.search.isFinished()) {
+            this.search.step();
+            this.stepBudget -= 1;
+        }
+
+        if (this.search.isFinished()) {
+            this.handleSearchFinished();
+        }
+    }
+
+    handleSearchFinished() {
+        this.recordResult();
+
+        if (!this.search.found) {
+            this.message = "Nenhum caminho até a comida foi encontrado.";
+            this.setState(SimulationState.WAITING);
+            return;
+        }
+
+        this.agent.setPath(this.search.getPath());
+
+        if (this.agent.isMoving) {
+            this.message = "";
+            this.setState(SimulationState.MOVING);
+        } else {
+            this.collectFood();
+        }
     }
 
     updateMoving() {
-        this.agent.update();
+        this.agent.update(Agent.getFrameDelta() * this.ui.getSpeed());
 
-        // TODO: mudar para COLLECTING quando o agente alcançar a comida.
+        if (!this.agent.isMoving) {
+            this.collectFood();
+        }
+    }
+
+    collectFood() {
+        this.score += 1;
+        this.message = "Troque o algoritmo e inicie de novo para comparar no mesmo mapa.";
+        this.setState(SimulationState.COLLECTING);
     }
 
     updateCollecting() {
@@ -1248,6 +1625,7 @@ class Simulation {
 
     startSearch() {
         if (!this.food.position) {
+            this.message = "Não há comida alcançável neste mapa.";
             return;
         }
 
@@ -1260,6 +1638,9 @@ class Simulation {
             this.agent.position,
             this.food.position
         );
+        this.searchAlgorithmName = algorithmName;
+        this.stepBudget = 0;
+        this.message = "";
 
         this.setState(SimulationState.SEARCHING);
     }
@@ -1288,12 +1669,51 @@ class Simulation {
         throw new Error(`Algoritmo desconhecido: ${algorithmName}`);
     }
 
+    recordResult() {
+        const path = this.search.getPath();
+
+        this.results.set(this.searchAlgorithmName, {
+            found: this.search.found,
+            visited: this.search.visited.length,
+            pathSteps: Math.max(path.length - 1, 0),
+            pathCost: this.getPathCost(path)
+        });
+    }
+
+    getPathCost(path) {
+        // O custo de um passo é o custo de entrar na célula; o início não é cobrado.
+        let total = 0;
+
+        for (let i = 1; i < path.length; i += 1) {
+            total += path[i].cost;
+        }
+
+        return total;
+    }
+
+    getStatus() {
+        const search = this.search;
+        const path = search ? search.getPath() : [];
+
+        return {
+            state: this.state,
+            algorithm: this.searchAlgorithmName || this.ui.getSelectedAlgorithm(),
+            visited: search ? search.visited.length : 0,
+            frontier: search ? search.frontier.length : 0,
+            pathSteps: Math.max(path.length - 1, 0),
+            pathCost: this.getPathCost(path),
+            score: this.score,
+            message: this.message,
+            results: this.results
+        };
+    }
+
     display() {
         this.grid.display();
         this.searchVisualizer.display(this.search);
         this.food.display(this.grid.cellSize);
         this.agent.display(this.grid.cellSize);
-        this.ui.display();
+        this.ui.display(this.getStatus());
     }
 
     setState(state) {

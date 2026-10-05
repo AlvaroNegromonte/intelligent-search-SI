@@ -4,6 +4,180 @@ html, body {
     background: #f5f5f5;
 }
 
+body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+    color: #222;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+}
+
 canvas {
     display: block;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 300px;
+    padding: 16px;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.panel h1 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.panel h2 {
+    margin: 8px 0 4px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #666;
+}
+
+.group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.group-title {
+    font-weight: 600;
+}
+
+.panel select {
+    padding: 6px;
+    font-size: 14px;
+}
+
+.buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.buttons button {
+    flex: 1;
+    padding: 8px 6px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: #f2f2f2;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.buttons button:hover {
+    background: #e6e6e6;
+}
+
+.buttons button.primary {
+    flex-basis: 100%;
+    border-color: #2f6fd0;
+    background: #2f6fd0;
+    color: #fff;
+    font-weight: 600;
+}
+
+.buttons button.primary:hover {
+    background: #245bb0;
+}
+
+.speed {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.speed input {
+    flex: 1;
+}
+
+.status p {
+    margin: 0 0 6px;
+}
+
+.state {
+    font-weight: 600;
+}
+
+.state-searching {
+    color: #c26a00;
+}
+
+.state-moving {
+    color: #2f6fd0;
+}
+
+.state-collecting {
+    color: #2e8b3e;
+}
+
+.message {
+    color: #555;
+}
+
+.status dl {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 2px 12px;
+    margin: 0;
+}
+
+.status dt {
+    color: #666;
+}
+
+.status dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.status table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.status th,
+.status td {
+    padding: 3px 4px;
+    border-bottom: 1px solid #eee;
+    text-align: right;
+}
+
+.status th:first-child,
+.status td:first-child {
+    text-align: left;
+}
+
+.legend ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.legend li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 3px 0;
+}
+
+.swatch {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    border-radius: 3px;
 }
