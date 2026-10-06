@@ -33,23 +33,16 @@ class Simulation {
         this.food.relocate(this.grid, startCell);
         this.search = null;
         this.searchAlgorithmName = null;
+        this.stepBudget = 0;
         this.results.clear();
+        this.resultsStart = null;
+        this.resultsGoal = null;
         this.message = "Novo mapa gerado. Escolha um algoritmo e inicie a busca.";
         this.setState(SimulationState.WAITING);
     }
 
     resetSimulation() {
-        this.agent.setPosition(this.grid.getCell(0, 0));
-        this.agent.clearPath();
-
-        if (this.resultsStart !== this.agent.position) {
-            this.results.clear();
-        }
-
-        this.search = null;
-        this.searchAlgorithmName = null;
-        this.message = "";
-        this.setState(SimulationState.WAITING);
+        this.generateNewMap();
     }
 
     update() {
