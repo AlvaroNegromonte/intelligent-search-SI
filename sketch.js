@@ -8,6 +8,7 @@ function setup() {
         rows: 15,
         cellSize: 40
     });
+    simulation.generateNewMap();
 }
 
 function draw() {

@@ -12,16 +12,16 @@ Os algoritmos planejados são:
 
 Os cinco algoritmos, a geração procedural de terreno, a visualização passo a passo, o movimento do agente com velocidade dependente do terreno e o painel de controles estão implementados.
 
-Ao executar, aparece uma grade de 20 × 15 células de areia em um canvas de 800 × 600 pixels, com o agente no canto superior esquerdo e a comida sorteada em uma célula distante e alcançável. A simulação começa em `SimulationState.WAITING`, sem iniciar uma busca automaticamente.
+Ao executar, aparece uma grade procedural de 20 × 15 células em um canvas de 800 × 600 pixels, com o agente no canto superior esquerdo e a comida sorteada em uma célula distante e alcançável. A simulação começa em `SimulationState.WAITING`, sem iniciar uma busca automaticamente.
 
 ## Como usar
 
 1. Abra a página. À esquerda fica o mapa; à direita, o painel de controles.
-2. Clique em **Novo mapa** para gerar terreno com areia, lama, água e obstáculos. A comida (verde) é sorteada longe do agente (vermelho).
+2. O mapa já começa com terreno procedural. Clique em **Novo mapa** quando quiser gerar outro cenário com areia, lama, água e obstáculos. A comida (verde) é sorteada longe do agente (vermelho).
 3. Escolha o **Algoritmo** e clique em **Iniciar busca**. A busca é animada nó a nó: roxo são os visitados, laranja é a fronteira e amarelo é o caminho final.
 4. Quando a busca termina, o agente percorre o caminho. Ele anda mais devagar na lama (×0,6) e na água (×0,3).
-5. Troque o algoritmo e inicie de novo para comparar no mesmo mapa. A tabela **Comparação neste mapa** mostra nós visitados, passos e custo de cada algoritmo.
-6. **Velocidade** acelera ou desacelera a busca e o agente (0,25x a 4x). **Reiniciar** volta o agente ao início sem trocar o mapa.
+5. Ao alcançar a comida, o agente soma uma coleta. Outra comida distante e alcançável é sorteada no mesmo mapa, e o algoritmo selecionado inicia outra busca da posição atual do agente. A tabela **Comparação neste mapa** mostra nós visitados, passos e custo; os resultados permanecem durante o movimento e são limpos quando o início ou o objetivo muda. Para comparar algoritmos antes da coleta, troque a seleção e clique em **Iniciar busca**; esse início manual volta a `(0, 0)`.
+6. **Velocidade** acelera ou desacelera a busca e o agente (0,25x a 4x). **Reiniciar** interrompe o ciclo e volta o agente ao início sem trocar mapa ou comida. **Novo mapa** também interrompe o ciclo. Ambos mantêm a pontuação acumulada e aguardam outro clique em **Iniciar busca**.
 
 ## Executando o projeto
 
@@ -206,20 +206,20 @@ Ao adicionar um arquivo, carregue-o depois de suas dependências e antes de quem
 ### Agente, comida e simulação
 
 - `Agent.position` e `Food.position` são referências a objetos `Cell`, não coordenadas brutas.
-- A inicialização mantém a grade de areia e o estado `WAITING`, com uma comida sorteada. `simulation.generateNewMap()` gera terreno procedural, retorna o agente a `(0, 0)`, limpa seu caminho e movimento, sorteia a comida, remove a busca anterior e a tabela de comparação e retorna a `WAITING`. O botão **Novo mapa** chama esse método; **Reiniciar** chama `resetSimulation()`, que volta o agente ao início e remove a busca, mantendo mapa, comida e comparação.
+- `setup()` chama `simulation.generateNewMap()` após construir a simulação: a aplicação já abre com terreno procedural e permanece em `WAITING`. Esse método retorna o agente a `(0, 0)`, limpa seu caminho e movimento, sorteia a comida e remove a busca anterior e a tabela de comparação. O botão **Novo mapa** chama o mesmo método; **Reiniciar** chama `resetSimulation()`, que volta o agente ao início e remove a busca, mantendo mapa e comida. A comparação só é preservada se seu início também for `(0, 0)`. Nenhuma dessas ações zera a pontuação acumulada.
 - `food.relocate(grid, agentCell)` percorre os vizinhos transitáveis uma única vez e sorteia uma célula alcançável diferente do agente. A distância mínima de Manhattan é `Math.ceil(((grid.cols - 1) + (grid.rows - 1)) * 0.45)`: 15 na grade 20×15. Se não houver candidatas nessa distância, usa as células alcançáveis mais distantes. Evita as coordenadas anteriores quando há mais de uma candidata; se só houver uma, permite repeti-las. Qualquer terreno transitável pode receber comida, sem alterar custos.
 - Se não houver outra célula alcançável (por exemplo, uma grade 1×1), `relocate()` retorna `null` e deixa `Food.position` como `null`; nenhuma busca é iniciada sem objetivo. `Food.display()` já aceita ausência de posição.
-- `startSearch()` retorna o agente ao mesmo início `(0, 0)` e limpa seu caminho, mantendo terreno e comida. Trocar algoritmos, reiniciar ou concluir buscas não reposiciona a comida; somente um novo cenário seleciona outro objetivo.
+- `startSearch()` retorna o agente ao início `(0, 0)` e limpa seu caminho, mantendo terreno e comida. `startSearch({ resetAgent: false })` mantém a célula atual como início, para continuar após a coleta. Ambas usam o algoritmo selecionado na interface. Os resultados só podem ser comparados quando compartilham mapa, início e objetivo; `resultsStart` e `resultsGoal` identificam esse par de células.
 - `Agent.setPath(path)` recebe um array de células ordenado do início ao objetivo e define `isMoving` como verdadeiro se houver mais de uma célula. `Agent.update(deltaMs)` avança o agente continuamente, a `Agent.BASE_SPEED` células por segundo multiplicadas pela velocidade do terreno da célula de entrada, e define `isMoving` como falso ao chegar à última célula.
 - O movimento do agente deve avançar gradualmente, em vez de consumir um caminho inteiro em um único quadro. A velocidade do terreno vem de `Terrain.getSpeedMultiplier()`.
 - A `Simulation` é responsável pela coordenação entre a grade, a busca, as entidades, a interface, a pontuação e o ciclo de vida. Os componentes não devem criar nem controlar uns aos outros diretamente.
 - `SearchVisualizer.display(search)` recebe a busca e delega o desenho de `visited`, `frontier` e `finalPath` aos seus métodos. Mantenha as sobreposições de busca nessa classe; `Simulation.display()` apenas coordena as chamadas de desenho dos componentes.
 - Os estados válidos do ciclo de vida são `WAITING`, `SEARCHING`, `MOVING` e `COLLECTING`. Use `simulation.setState()` para que estados inválidos sejam rejeitados.
-- A simulação deve começar em `WAITING`. Mantenha o início de buscas em `startSearch()`, acionado explicitamente; não inicie algoritmos incompletos no construtor ou em `setup()`.
+- A simulação deve começar em `WAITING`, sem busca no construtor ou em `setup()`. O primeiro início depende do botão; as buscas seguintes são iniciadas automaticamente por `updateCollecting()`.
 - Durante `SEARCHING`, `updateSearching()` chama `step()` de acordo com a velocidade da interface: um por quadro em 1x, vários em velocidades maiores e um a cada poucos quadros abaixo de 1x. Ao terminar, registra o resultado na comparação; com sucesso, envia o caminho ao agente com `agent.setPath(path)` e entra em `MOVING`; uma falha volta a `WAITING`.
-- Durante `MOVING`, o agente recebe o tempo do quadro multiplicado pela velocidade. Quando `agent.isMoving` fica falso, a simulação soma um ponto e entra em `COLLECTING`.
+- Durante `MOVING`, o agente recebe o tempo do quadro multiplicado pela velocidade. Quando `agent.isMoving` fica falso, `collectFood()` verifica se ele está na mesma célula da comida, soma exatamente um ponto e entra em `COLLECTING`. Uma parada antes da comida volta a `WAITING`, sem pontuar.
 - A `UI` não chama a `Simulation`: os botões enfileiram ações (`UI.ACTIONS`), que a simulação consome com `ui.consumeActions()` no início de `update()`. A `Simulation` envia os dados exibidos com `ui.display(simulation.getStatus())`.
-- A coleta contínua fica para trabalho futuro. Alcançar a comida não deve gerar outro objetivo nem reposicioná-la automaticamente neste modo de comparação.
+- No próximo quadro em `COLLECTING`, `updateCollecting()` chama `food.relocate(grid, agent.position)`, limpa a comparação e a busca anterior e inicia outra busca da célula atual. O terreno permanece igual. Se não houver objetivo válido, a simulação volta a `WAITING`; uma busca sem caminho também espera intervenção do usuário, sem repetir automaticamente.
 - `Simulation` e `UI` devem usar o contrato público da busca, sem depender de `queue`, `stack`, `priorityQueue` ou `costSoFar`.
 - Mantenha as mudanças de estado nos métodos de atualização e a renderização nos métodos `display()`. O código de desenho não deve avançar a simulação.
 - Os identificadores de algoritmos expostos pela interface e aceitos por `Simulation.createSearchAlgorithm()` devem permanecer sincronizados: `BFS`, `DFS`, `UCS`, `GREEDY` e `ASTAR`.
@@ -252,8 +252,10 @@ Abra `index.html` e `web-editor/index.html` no navegador e verifique se:
 
 - o console do navegador não contém erros;
 - a grade de 20 × 15 é renderizada em 800 × 600 pixels;
-- o agente começa no canto superior esquerdo e a comida em uma célula transitável, distante e alcançável; ela permanece fixa até gerar outro cenário;
-- a grade inicial usa areia e a simulação permanece em `WAITING`, sem executar buscas automaticamente.
+- o agente começa no canto superior esquerdo e a comida em uma célula transitável, distante e alcançável;
+- a grade inicial já é procedural e a simulação permanece em `WAITING`, sem executar buscas automaticamente;
+- após cada chegada à comida, a pontuação aumenta uma vez, outra comida é sorteada no mesmo terreno e a busca continua da célula coletada com o algoritmo selecionado;
+- **Reiniciar** e **Novo mapa** interrompem o ciclo e aguardam um novo início manual; a tabela nunca mistura pares diferentes de início e objetivo.
 
 Confira também se a ordem de dependências em `index.html` corresponde à lista do script, se os caminhos continuam relativos e se a alternativa usa somente seus três arquivos e o p5.js da CDN. Quando publicar no GitHub Pages, abra a URL do site para verificar a versão disponibilizada.
 

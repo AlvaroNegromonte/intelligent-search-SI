@@ -1506,8 +1506,10 @@ class Simulation {
         this.stepBudget = 0;
         this.score = 0;
         this.message = "Gere um novo mapa ou inicie uma busca.";
-        // Resultado de cada algoritmo no mapa atual, para comparação.
+        // Só compare resultados com o mesmo início e objetivo no mapa atual.
         this.results = new Map();
+        this.resultsStart = null;
+        this.resultsGoal = null;
         this.state = SimulationState.WAITING;
 
         this.ui.initialize();
@@ -1530,6 +1532,11 @@ class Simulation {
     resetSimulation() {
         this.agent.setPosition(this.grid.getCell(0, 0));
         this.agent.clearPath();
+
+        if (this.resultsStart !== this.agent.position) {
+            this.results.clear();
+        }
+
         this.search = null;
         this.searchAlgorithmName = null;
         this.message = "";
@@ -1614,23 +1621,49 @@ class Simulation {
     }
 
     collectFood() {
+        if (this.state === SimulationState.COLLECTING) {
+            return;
+        }
+
+        if (!this.food.position || this.agent.position !== this.food.position) {
+            this.message = "O agente parou antes de alcançar a comida.";
+            this.setState(SimulationState.WAITING);
+            return;
+        }
+
         this.score += 1;
-        this.message = "Troque o algoritmo e inicie de novo para comparar no mesmo mapa.";
+        this.message = "Comida coletada! A próxima busca começará da posição atual.";
         this.setState(SimulationState.COLLECTING);
     }
 
     updateCollecting() {
-        // A comida permanece fixa neste cenário; coleta contínua fica para trabalho futuro.
+        this.food.relocate(this.grid, this.agent.position);
+        this.results.clear();
+        this.search = null;
+        this.searchAlgorithmName = null;
+        this.startSearch({ resetAgent: false });
     }
 
-    startSearch() {
+    startSearch(options = {}) {
         if (!this.food.position) {
             this.message = "Não há comida alcançável neste mapa.";
+            this.setState(SimulationState.WAITING);
             return;
         }
 
-        this.agent.setPosition(this.grid.getCell(0, 0));
+        // O início manual preserva a comparação; a coleta continua da célula atual.
+        if (options.resetAgent !== false) {
+            this.agent.setPosition(this.grid.getCell(0, 0));
+        }
+
         this.agent.clearPath();
+
+        if (this.resultsStart !== this.agent.position || this.resultsGoal !== this.food.position) {
+            this.results.clear();
+        }
+
+        this.resultsStart = this.agent.position;
+        this.resultsGoal = this.food.position;
         const algorithmName = this.ui.getSelectedAlgorithm();
 
         this.search = this.createSearchAlgorithm(
@@ -1739,6 +1772,7 @@ function setup() {
         rows: 15,
         cellSize: 40
     });
+    simulation.generateNewMap();
 }
 
 function draw() {
