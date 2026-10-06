@@ -191,6 +191,15 @@ class Grid {
         return cell.neighbors.filter((neighbor) => neighbor.walkable);
     }
 
+    getRandomWalkableCell() {
+        const walkableCells = this.cells.flat().filter((cell) => cell.walkable);
+        // Evita colocar o agente em uma célula isolada, sem espaço para comida.
+        const connectedCells = walkableCells.filter((cell) => this.getNeighbors(cell).length > 0);
+        const candidates = connectedCells.length > 0 ? connectedCells : walkableCells;
+
+        return candidates[Math.floor(Math.random() * candidates.length)] || null;
+    }
+
     setTerrain(col, row, terrainType) {
         const cell = this.getCell(col, row);
 
@@ -1496,7 +1505,8 @@ class Simulation {
         const cellSize = options.cellSize || 40;
 
         this.grid = new Grid(cols, rows, cellSize);
-        this.agent = new Agent(this.grid.getCell(0, 0));
+        this.initialAgentCell = this.grid.getRandomWalkableCell();
+        this.agent = new Agent(this.initialAgentCell);
         this.food = new Food(null);
         this.food.relocate(this.grid, this.agent.position);
         this.ui = new UI();
@@ -1518,29 +1528,23 @@ class Simulation {
     generateNewMap() {
         this.grid.generateProcedural();
 
-        const startCell = this.grid.getCell(0, 0);
+        const startCell = this.grid.getRandomWalkableCell();
+        this.initialAgentCell = startCell;
         this.agent.setPosition(startCell);
         this.agent.clearPath();
         this.food.relocate(this.grid, startCell);
         this.search = null;
         this.searchAlgorithmName = null;
+        this.stepBudget = 0;
         this.results.clear();
+        this.resultsStart = null;
+        this.resultsGoal = null;
         this.message = "Novo mapa gerado. Escolha um algoritmo e inicie a busca.";
         this.setState(SimulationState.WAITING);
     }
 
     resetSimulation() {
-        this.agent.setPosition(this.grid.getCell(0, 0));
-        this.agent.clearPath();
-
-        if (this.resultsStart !== this.agent.position) {
-            this.results.clear();
-        }
-
-        this.search = null;
-        this.searchAlgorithmName = null;
-        this.message = "";
-        this.setState(SimulationState.WAITING);
+        this.generateNewMap();
     }
 
     update() {
@@ -1653,7 +1657,7 @@ class Simulation {
 
         // O início manual preserva a comparação; a coleta continua da célula atual.
         if (options.resetAgent !== false) {
-            this.agent.setPosition(this.grid.getCell(0, 0));
+            this.agent.setPosition(this.initialAgentCell);
         }
 
         this.agent.clearPath();

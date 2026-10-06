@@ -66,7 +66,7 @@ Search algorithms must extend `SearchAlgorithm`. Preserve `frontier`, `visited`,
 
 ## Testing Guidelines
 
-No automated test framework is configured. Check both the root `index.html` and `web-editor/index.html`: the console should have no errors, the 20×15 grid should render on an 800×600 canvas, and agent and food should appear at opposite corners. The simulation starts in `SimulationState.WAITING`. Check the published GitHub Pages URL after deployment.
+No automated test framework is configured. Check both the root `index.html` and `web-editor/index.html`: the console should have no errors, the 20×15 grid should render on an 800×600 canvas, the agent should appear at a random walkable position, and food should appear at a different reachable position. The simulation starts in `SimulationState.WAITING`. Restarting generates a new random map and new agent and food positions. Check the published GitHub Pages URL after deployment.
 
 Verify relative paths, script dependency order, no stale root copies of application classes, and an up-to-date generated fallback. For search changes, check frontier, visited nodes, path order, and one-step-per-call behavior. Keep search rendering in `SearchVisualizer`, loaded before `Simulation`. Place future tests in `tests/` as `*.test.js`.
 

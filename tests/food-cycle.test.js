@@ -70,7 +70,8 @@ const startup = getSimulation();
 assert.strictEqual(startup.state, SimulationState.WAITING);
 assert.strictEqual(startup.search, null);
 assert.strictEqual(startup.score, 0);
-assert.strictEqual(startup.agent.position, startup.grid.getCell(0, 0));
+assert.strictEqual(startup.agent.position, startup.initialAgentCell);
+assert.ok(startup.agent.position.walkable);
 assert.ok(startup.grid.cells.some((row) => row.some((cell) => cell.terrainType === Terrain.OBSTACLE)));
 assertValidFood(startup);
 console.log("[PASS] startup procedural em WAITING, sem busca, com comida válida");
@@ -110,8 +111,7 @@ for (const algorithm of ["BFS", "DFS", "UCS", "GREEDY", "ASTAR"]) {
             }
         }
 
-        // Reiniciar durante a continuação mantém mapa, comida e pontuação.
-        const food = simulation.food.position;
+        // Reiniciar interrompe a continuação e gera outro mapa, mantendo a pontuação.
         simulation.ui.requestAction(UI.ACTIONS.RESET);
         for (let frame = 0; frame < 10; frame += 1) {
             simulation.update();
@@ -119,10 +119,14 @@ for (const algorithm of ["BFS", "DFS", "UCS", "GREEDY", "ASTAR"]) {
         assert.strictEqual(simulation.state, SimulationState.WAITING);
         assert.strictEqual(simulation.search, null);
         assert.strictEqual(simulation.agent.isMoving, false);
-        assert.strictEqual(simulation.agent.position, simulation.grid.getCell(0, 0));
-        assert.strictEqual(simulation.food.position, food);
+        assert.strictEqual(simulation.agent.position, simulation.initialAgentCell);
+        assert.ok(simulation.agent.position.walkable);
         assert.strictEqual(simulation.score, 3);
-        assert.strictEqual(terrainSnapshot(simulation), terrain);
+        assert.notStrictEqual(terrainSnapshot(simulation), terrain);
+        assert.strictEqual(simulation.results.size, 0);
+        assertValidFood(simulation);
+
+        const restartedTerrain = terrainSnapshot(simulation);
 
         simulation.startSearch();
         simulation.ui.requestAction(UI.ACTIONS.NEW_MAP);
@@ -131,7 +135,7 @@ for (const algorithm of ["BFS", "DFS", "UCS", "GREEDY", "ASTAR"]) {
         assert.strictEqual(simulation.search, null);
         assert.strictEqual(simulation.results.size, 0);
         assert.strictEqual(simulation.score, 3);
-        assert.notStrictEqual(terrainSnapshot(simulation), terrain);
+        assert.notStrictEqual(terrainSnapshot(simulation), restartedTerrain);
         assertValidFood(simulation);
         console.log(`[PASS] ${algorithm} em ${speed}x: 3 coletas, continuação, Reiniciar e Novo mapa`);
     }
@@ -143,7 +147,7 @@ comparison.startSearch();
 reachCollection(comparison);
 comparison.update();
 reachCollection(comparison);
-assert.ok(comparison.resultsStart !== comparison.grid.getCell(0, 0));
+assert.ok(comparison.resultsStart !== comparison.initialAgentCell);
 comparison.resetSimulation();
 assert.strictEqual(comparison.results.size, 0, "Reiniciar não exibe resultados com outro início.");
 comparison.startSearch();
@@ -182,7 +186,11 @@ assert.strictEqual(noFood.search, null);
 const isolatedAfterCollection = new Simulation({ cols: 2, rows: 1 });
 isolatedAfterCollection.startSearch();
 reachCollection(isolatedAfterCollection);
-isolatedAfterCollection.grid.getCell(0, 0).setTerrain(Terrain.OBSTACLE);
+for (const cell of isolatedAfterCollection.grid.cells[0]) {
+    if (cell !== isolatedAfterCollection.agent.position) {
+        cell.setTerrain(Terrain.OBSTACLE);
+    }
+}
 isolatedAfterCollection.update();
 assert.strictEqual(isolatedAfterCollection.food.position, null);
 assert.strictEqual(isolatedAfterCollection.state, SimulationState.WAITING);
