@@ -116,12 +116,28 @@ test("AStar processa no máximo um nó por step() e mantém Cells na fronteira",
     assert.ok(astar.frontier.every((cell) => cell instanceof Cell));
 });
 
-test("AStar usa o custo do terreno mais barato para escalar a Manhattan", () => {
-    assert.strictEqual(AStar.getMinimumStepCost(), Terrain.getCost(Terrain.SAND));
-
+test("AStar multiplica a Manhattan por 50", () => {
     const grid = new Grid(5, 5, 40);
     const astar = new AStar(grid, grid.getCell(0, 0), grid.getCell(3, 4));
-    assert.strictEqual(astar.heuristic(grid.getCell(0, 0)), 7 * Terrain.getCost(Terrain.SAND));
+    assert.strictEqual(astar.heuristic(grid.getCell(0, 0)), 350);
+    assert.strictEqual(astar.heuristic(astar.goal), 0);
+});
+
+test("AStar ponderada pode preferir um caminho mais curto com custo maior", () => {
+    const grid = new Grid(3, 2, 40);
+    grid.setTerrain(1, 0, Terrain.MUD);
+    const start = grid.getCell(0, 0);
+    const goal = grid.getCell(2, 0);
+    const astar = new AStar(grid, start, goal);
+    const ucs = new UniformCostSearch(grid, start, goal);
+
+    runToEnd(astar);
+    runToEnd(ucs);
+
+    assert.strictEqual(astar.found, true);
+    assert.deepStrictEqual(astar.getPath(), [start, grid.getCell(1, 0), goal]);
+    assert.strictEqual(pathCost(astar.getPath()), 60);
+    assert.strictEqual(pathCost(ucs.getPath()), 40);
 });
 
 test("AStar desvia da água quando contornar é mais barato", () => {
@@ -142,7 +158,7 @@ test("AStar desvia da água quando contornar é mais barato", () => {
     assert.ok(astar.getPath().every((cell) => cell.terrainType === Terrain.SAND));
 });
 
-test("AStar encontra o mesmo custo ótimo da UCS visitando no máximo os mesmos nós", () => {
+test("AStar ponderada encontra caminhos válidos nos mesmos mapas que a UCS", () => {
     withSeededRandom(() => {
         for (let trial = 0; trial < 25; trial++) {
             const grid = new Grid(20, 15, 40);
@@ -156,8 +172,22 @@ test("AStar encontra o mesmo custo ótimo da UCS visitando no máximo os mesmos 
             runToEnd(astar);
 
             assert.strictEqual(astar.found, ucs.found);
-            assert.strictEqual(pathCost(astar.getPath()), pathCost(ucs.getPath()));
-            assert.ok(astar.visited.length <= ucs.visited.length);
+            assert.strictEqual(astar.isFinished(), true);
+            assert.ok(pathCost(astar.getPath()) >= pathCost(ucs.getPath()));
+
+            const pathCells = astar.getPath();
+
+            if (astar.found) {
+                assert.strictEqual(pathCells[0], start);
+                assert.strictEqual(pathCells[pathCells.length - 1], goal);
+                assert.strictEqual(new Set(pathCells).size, pathCells.length);
+
+                for (let index = 1; index < pathCells.length; index++) {
+                    assert.ok(grid.getNeighbors(pathCells[index - 1]).includes(pathCells[index]));
+                }
+            } else {
+                assert.deepStrictEqual(pathCells, []);
+            }
         }
     });
 });
@@ -297,9 +327,8 @@ test("Simulation percorre WAITING → SEARCHING → MOVING → COLLECTING com to
         assert.strictEqual(simulation.score, simulation.ui.availableAlgorithms.length);
         assert.strictEqual(simulation.results.size, 5);
 
-        // Os algoritmos ótimos em custo devem empatar; nenhum outro pode ser mais barato.
+        // A UCS minimiza custo; a A* ponderada e as outras buscas podem custar mais.
         const ucsCost = simulation.results.get("UCS").pathCost;
-        assert.strictEqual(simulation.results.get("ASTAR").pathCost, ucsCost);
 
         for (const result of simulation.results.values()) {
             assert.ok(result.pathCost >= ucsCost);

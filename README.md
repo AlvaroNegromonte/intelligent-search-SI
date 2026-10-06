@@ -193,7 +193,7 @@ Ao adicionar um arquivo, carregue-o depois de suas dependências e antes de quem
 - `reset()` deve restaurar todo o estado de busca compartilhado. As subclasses de algoritmos que possuam filas, pilhas, conjuntos ou mapas de custo adicionais também devem limpar essas estruturas.
 - A BFS usa ordenação FIFO; a DFS usa ordenação LIFO; a UCS prioriza o custo de entrada acumulado; a Busca Gulosa prioriza apenas a heurística; e a A* prioriza o custo de entrada acumulado somado à heurística.
 - A Busca Gulosa e a A* usam `Heuristics.manhattan(cell, goal)`. A distância de Manhattan corresponde ao contrato de movimento ortogonal da grade.
-- A A* multiplica a Manhattan pelo menor custo entre os terrenos transitáveis (`AStar.getMinimumStepCost()`, hoje 10, lido de `Terrain`). Como cada passo custa pelo menos esse valor, a heurística continua admissível e consistente, mas fica na mesma escala dos custos; sem isso, a A* se comportaria quase como a UCS. Em empates de `f = g + h`, a A* prefere o nó de menor `h`, sem alterar a ordem por `f`.
+- A A* ponderada multiplica a Manhattan pelo peso fixo `AStar.HEURISTIC_WEIGHT = 50`. Esse valor é cinco vezes o menor custo de terreno atual (areia, 10), favorecendo a proximidade do objetivo. A heurística pode superestimar o custo restante, e a busca não garante o caminho de menor custo. Esta versão não reabre nós já expandidos. O ajuste `AStar.TIE_BREAK = 1e-6` permanece como preferência pelo menor `h` em empates de `f = g + h`.
 - Se um custo acumulado menor alcançar uma célula na UCS ou na A*, atualize sua prioridade, `cameFrom` e `costSoFar`. Não trate a primeira descoberta como permanentemente ótima.
 
 ### Fila de prioridade

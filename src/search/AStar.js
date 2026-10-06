@@ -4,7 +4,6 @@ class AStar extends SearchAlgorithm {
         this.priorityQueue = new PriorityQueue();
         this.costSoFar = new Map();
         this.closed = new Set();
-        this.minimumStepCost = AStar.getMinimumStepCost();
 
         this.init();
     }
@@ -18,10 +17,9 @@ class AStar extends SearchAlgorithm {
     }
 
     heuristic(cell) {
-        // Manhattan conta passos; cada passo custa pelo menos o terreno mais barato.
-        // Multiplicar por esse custo mantém a heurística admissível e consistente,
-        // mas na mesma escala dos custos, o que deixa a A* bem mais focada que a UCS.
-        return Heuristics.manhattan(cell, this.goal) * this.minimumStepCost;
+        // O peso 50 favorece a proximidade do objetivo, mas pode superestimar
+        // o custo restante e não garante um caminho de custo mínimo.
+        return Heuristics.manhattan(cell, this.goal) * AStar.HEURISTIC_WEIGHT;
     }
 
     getPriority(cell, costToCell) {
@@ -56,7 +54,7 @@ class AStar extends SearchAlgorithm {
         const neighbors = this.grid.getNeighbors(current);
 
         for (const neighbor of neighbors) {
-            // Com heurística consistente, um nó expandido já tem custo mínimo.
+            // Esta versão ponderada não reabre nós já expandidos.
             if (this.closed.has(neighbor)) {
                 continue;
             }
@@ -80,18 +78,7 @@ class AStar extends SearchAlgorithm {
         this.closed = new Set();
         this.init();
     }
-
-    static getMinimumStepCost() {
-        let minimum = Infinity;
-
-        for (const type of Object.keys(Terrain.TYPES)) {
-            if (Terrain.isWalkable(type)) {
-                minimum = Math.min(minimum, Terrain.getCost(type));
-            }
-        }
-
-        return minimum;
-    }
 }
 
+AStar.HEURISTIC_WEIGHT = 50;
 AStar.TIE_BREAK = 1e-6;
