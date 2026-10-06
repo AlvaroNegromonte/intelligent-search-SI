@@ -105,6 +105,38 @@ test("Grid.getNeighbors filtra vizinhos que são obstáculos", () => {
     assert.ok(!filteredNeighbors.some(n => n.col === 2 && n.row === 1));
 });
 
+test("Grid sorteia células transitáveis sem escolher obstáculos ou células isoladas", () => {
+    const grid = new Grid(4, 3, 40);
+
+    for (const row of grid.cells) {
+        for (const cell of row) {
+            cell.setTerrain(Terrain.OBSTACLE);
+        }
+    }
+
+    grid.setTerrain(0, 0, Terrain.SAND);
+    grid.setTerrain(1, 1, Terrain.WATER);
+    grid.setTerrain(2, 1, Terrain.MUD);
+    grid.setTerrain(3, 1, Terrain.SAND);
+    const originalRandom = Math.random;
+
+    try {
+        for (const [draw, col] of [[0, 1], [0.5, 2], [0.999, 3]]) {
+            Math.random = () => draw;
+            assert.strictEqual(grid.getRandomWalkableCell(), grid.getCell(col, 1));
+        }
+    } finally {
+        Math.random = originalRandom;
+    }
+});
+
+test("Grid trata o sorteio em uma única célula e em um mapa sem células transitáveis", () => {
+    const grid = new Grid(1, 1, 40);
+    assert.strictEqual(grid.getRandomWalkableCell(), grid.getCell(0, 0));
+    grid.setTerrain(0, 0, Terrain.OBSTACLE);
+    assert.strictEqual(grid.getRandomWalkableCell(), null);
+});
+
 test("Grid.generateProcedural cria terrenos variados e garante caminho viável", () => {
     const grid = new Grid(20, 15, 40);
     grid.generateProcedural({ obstacleChance: 0.25, mudChance: 0.20, waterChance: 0.15 });

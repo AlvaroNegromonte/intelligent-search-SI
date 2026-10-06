@@ -5,7 +5,8 @@ class Simulation {
         const cellSize = options.cellSize || 40;
 
         this.grid = new Grid(cols, rows, cellSize);
-        this.agent = new Agent(this.grid.getCell(0, 0));
+        this.initialAgentCell = this.grid.getRandomWalkableCell();
+        this.agent = new Agent(this.initialAgentCell);
         this.food = new Food(null);
         this.food.relocate(this.grid, this.agent.position);
         this.ui = new UI();
@@ -27,7 +28,8 @@ class Simulation {
     generateNewMap() {
         this.grid.generateProcedural();
 
-        const startCell = this.grid.getCell(0, 0);
+        const startCell = this.grid.getRandomWalkableCell();
+        this.initialAgentCell = startCell;
         this.agent.setPosition(startCell);
         this.agent.clearPath();
         this.food.relocate(this.grid, startCell);
@@ -155,7 +157,7 @@ class Simulation {
 
         // O início manual preserva a comparação; a coleta continua da célula atual.
         if (options.resetAgent !== false) {
-            this.agent.setPosition(this.grid.getCell(0, 0));
+            this.agent.setPosition(this.initialAgentCell);
         }
 
         this.agent.clearPath();

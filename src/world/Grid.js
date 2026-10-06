@@ -64,6 +64,15 @@ class Grid {
         return cell.neighbors.filter((neighbor) => neighbor.walkable);
     }
 
+    getRandomWalkableCell() {
+        const walkableCells = this.cells.flat().filter((cell) => cell.walkable);
+        // Evita colocar o agente em uma célula isolada, sem espaço para comida.
+        const connectedCells = walkableCells.filter((cell) => this.getNeighbors(cell).length > 0);
+        const candidates = connectedCells.length > 0 ? connectedCells : walkableCells;
+
+        return candidates[Math.floor(Math.random() * candidates.length)] || null;
+    }
+
     setTerrain(col, row, terrainType) {
         const cell = this.getCell(col, row);
 

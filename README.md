@@ -12,16 +12,16 @@ Os algoritmos planejados são:
 
 Os cinco algoritmos, a geração procedural de terreno, a visualização passo a passo, o movimento do agente com velocidade dependente do terreno e o painel de controles estão implementados.
 
-Ao executar, aparece uma grade procedural de 20 × 15 células em um canvas de 800 × 600 pixels, com o agente no canto superior esquerdo e a comida sorteada em uma célula distante e alcançável. A simulação começa em `SimulationState.WAITING`, sem iniciar uma busca automaticamente.
+Ao executar, aparece uma grade procedural de 20 × 15 células em um canvas de 800 × 600 pixels, com o agente sorteado em uma célula transitável e a comida sorteada em uma célula distante e alcançável. A simulação começa em `SimulationState.WAITING`, sem iniciar uma busca automaticamente.
 
 ## Como usar
 
 1. Abra a página. À esquerda fica o mapa; à direita, o painel de controles.
-2. O mapa já começa com terreno procedural. Clique em **Novo mapa** quando quiser gerar outro cenário com areia, lama, água e obstáculos. A comida (verde) é sorteada longe do agente (vermelho).
+2. O mapa já começa com terreno procedural. Clique em **Novo mapa** quando quiser gerar outro cenário com areia, lama, água e obstáculos. O agente (vermelho) aparece em uma posição aleatória transitável, e a comida (verde) é sorteada longe dele.
 3. Escolha o **Algoritmo** e clique em **Iniciar busca**. A busca é animada nó a nó: roxo são os visitados, laranja é a fronteira e amarelo é o caminho final.
 4. Quando a busca termina, o agente percorre o caminho. Ele anda mais devagar na lama (×0,6) e na água (×0,3).
-5. Ao alcançar a comida, o agente soma uma coleta. Outra comida distante e alcançável é sorteada no mesmo mapa, e o algoritmo selecionado inicia outra busca da posição atual do agente. A tabela **Comparação neste mapa** mostra nós visitados, passos e custo; os resultados permanecem durante o movimento e são limpos quando o início ou o objetivo muda. Para comparar algoritmos antes da coleta, troque a seleção e clique em **Iniciar busca**; esse início manual volta a `(0, 0)`.
-6. **Velocidade** acelera ou desacelera a busca e o agente (0,25x a 4x). **Reiniciar** e **Novo mapa** interrompem o ciclo, geram outro mapa aleatório e sorteiam a comida novamente. Ambos limpam a busca e a comparação, mantêm a pontuação acumulada, o algoritmo e a velocidade selecionados e aguardam outro clique em **Iniciar busca**.
+5. Ao alcançar a comida, o agente soma uma coleta. Outra comida distante e alcançável é sorteada no mesmo mapa, e o algoritmo selecionado inicia outra busca da posição atual do agente. A tabela **Comparação neste mapa** mostra nós visitados, passos e custo; os resultados permanecem durante o movimento e são limpos quando o início ou o objetivo muda. Para comparar algoritmos antes da coleta, troque a seleção e clique em **Iniciar busca**; esse início manual volta à posição inicial sorteada para o mapa.
+6. **Velocidade** acelera ou desacelera a busca e o agente (0,25x a 4x). **Reiniciar** e **Novo mapa** interrompem o ciclo, geram outro mapa aleatório e sorteiam as posições do agente e da comida novamente. Ambos limpam a busca e a comparação, mantêm a pontuação acumulada, o algoritmo e a velocidade selecionados e aguardam outro clique em **Iniciar busca**.
 
 ## Executando o projeto
 
@@ -206,10 +206,10 @@ Ao adicionar um arquivo, carregue-o depois de suas dependências e antes de quem
 ### Agente, comida e simulação
 
 - `Agent.position` e `Food.position` são referências a objetos `Cell`, não coordenadas brutas.
-- `setup()` chama `simulation.generateNewMap()` após construir a simulação: a aplicação já abre com terreno procedural e permanece em `WAITING`. Esse método retorna o agente a `(0, 0)`, limpa seu caminho e movimento, sorteia a comida e remove a busca anterior e a tabela de comparação, incluindo o par de início e objetivo e o orçamento de passos. O botão **Novo mapa** chama o mesmo método; **Reiniciar** chama `resetSimulation()`, que delega a `generateNewMap()` para gerar outro cenário aleatório. Nenhuma dessas ações zera a pontuação acumulada nem muda o algoritmo ou a velocidade selecionados.
+- `setup()` chama `simulation.generateNewMap()` após construir a simulação: a aplicação já abre com terreno procedural e permanece em `WAITING`. Esse método sorteia o agente usando `grid.getRandomWalkableCell()`, registra a posição em `initialAgentCell`, limpa seu caminho e movimento, sorteia a comida e remove a busca anterior e a tabela de comparação, incluindo o par de início e objetivo e o orçamento de passos. O sorteio do agente exclui obstáculos e prefere células com pelo menos um vizinho transitável, para evitar posições isoladas sem comida alcançável; se nenhuma tiver vizinhos, aceita uma célula transitável isolada. O botão **Novo mapa** chama o mesmo método; **Reiniciar** chama `resetSimulation()`, que delega a `generateNewMap()` para gerar outro cenário aleatório. Nenhuma dessas ações zera a pontuação acumulada nem muda o algoritmo ou a velocidade selecionados.
 - `food.relocate(grid, agentCell)` percorre os vizinhos transitáveis uma única vez e sorteia uma célula alcançável diferente do agente. A distância mínima de Manhattan é `Math.ceil(((grid.cols - 1) + (grid.rows - 1)) * 0.45)`: 15 na grade 20×15. Se não houver candidatas nessa distância, usa as células alcançáveis mais distantes. Evita as coordenadas anteriores quando há mais de uma candidata; se só houver uma, permite repeti-las. Qualquer terreno transitável pode receber comida, sem alterar custos.
 - Se não houver outra célula alcançável (por exemplo, uma grade 1×1), `relocate()` retorna `null` e deixa `Food.position` como `null`; nenhuma busca é iniciada sem objetivo. `Food.display()` já aceita ausência de posição.
-- `startSearch()` retorna o agente ao início `(0, 0)` e limpa seu caminho, mantendo terreno e comida. `startSearch({ resetAgent: false })` mantém a célula atual como início, para continuar após a coleta. Ambas usam o algoritmo selecionado na interface. Os resultados só podem ser comparados quando compartilham mapa, início e objetivo; `resultsStart` e `resultsGoal` identificam esse par de células.
+- `startSearch()` retorna o agente à posição inicial sorteada em `initialAgentCell` e limpa seu caminho, mantendo terreno e comida. `startSearch({ resetAgent: false })` mantém a célula atual como início, para continuar após a coleta. Ambas usam o algoritmo selecionado na interface. Os resultados só podem ser comparados quando compartilham mapa, início e objetivo; `resultsStart` e `resultsGoal` identificam esse par de células.
 - `Agent.setPath(path)` recebe um array de células ordenado do início ao objetivo e define `isMoving` como verdadeiro se houver mais de uma célula. `Agent.update(deltaMs)` avança o agente continuamente, a `Agent.BASE_SPEED` células por segundo multiplicadas pela velocidade do terreno da célula de entrada, e define `isMoving` como falso ao chegar à última célula.
 - O movimento do agente deve avançar gradualmente, em vez de consumir um caminho inteiro em um único quadro. A velocidade do terreno vem de `Terrain.getSpeedMultiplier()`.
 - A `Simulation` é responsável pela coordenação entre a grade, a busca, as entidades, a interface, a pontuação e o ciclo de vida. Os componentes não devem criar nem controlar uns aos outros diretamente.
@@ -252,10 +252,10 @@ Abra `index.html` e `web-editor/index.html` no navegador e verifique se:
 
 - o console do navegador não contém erros;
 - a grade de 20 × 15 é renderizada em 800 × 600 pixels;
-- o agente começa no canto superior esquerdo e a comida em uma célula transitável, distante e alcançável;
+- o agente começa em uma posição sorteada e transitável e a comida em outra célula transitável, distante e alcançável;
 - a grade inicial já é procedural e a simulação permanece em `WAITING`, sem executar buscas automaticamente;
 - após cada chegada à comida, a pontuação aumenta uma vez, outra comida é sorteada no mesmo terreno e a busca continua da célula coletada com o algoritmo selecionado;
-- **Reiniciar** e **Novo mapa** geram outro mapa aleatório, sorteiam a comida, limpam a busca e a comparação e aguardam um novo início manual; a tabela nunca mistura pares diferentes de início e objetivo.
+- **Reiniciar** e **Novo mapa** geram outro mapa aleatório, sorteiam agente e comida, limpam a busca e a comparação e aguardam um novo início manual; a tabela nunca mistura pares diferentes de início e objetivo.
 
 Confira também se a ordem de dependências em `index.html` corresponde à lista do script, se os caminhos continuam relativos e se a alternativa usa somente seus três arquivos e o p5.js da CDN. Quando publicar no GitHub Pages, abra a URL do site para verificar a versão disponibilizada.
 

@@ -218,7 +218,55 @@ test("Simulation começa em WAITING sem busca", () => {
     const simulation = new Simulation();
     assert.strictEqual(simulation.state, SimulationState.WAITING);
     assert.strictEqual(simulation.search, null);
-    assert.strictEqual(simulation.agent.position, simulation.grid.getCell(0, 0));
+    assert.strictEqual(simulation.agent.position, simulation.initialAgentCell);
+    assert.ok(simulation.agent.position.walkable);
+});
+
+test("Simulation sorteia posições transitáveis e comida alcançável a cada mapa", () => {
+    withSeededRandom(() => {
+        const simulation = new Simulation();
+        const positions = new Set();
+
+        for (let trial = 0; trial < 30; trial += 1) {
+            simulation.generateNewMap();
+            const start = simulation.agent.position;
+            positions.add(`${start.col},${start.row}`);
+
+            assert.strictEqual(start, simulation.initialAgentCell);
+            assert.strictEqual(start, simulation.grid.getCell(start.col, start.row));
+            assert.ok(start.walkable);
+            assert.ok(simulation.food.position.walkable);
+            assert.notStrictEqual(start, simulation.food.position);
+            assert.ok(simulation.grid.isReachable(start, simulation.food.position));
+            assert.strictEqual(simulation.state, SimulationState.WAITING);
+
+            simulation.startSearch();
+            assert.strictEqual(simulation.search.start, start);
+        }
+
+        assert.ok(positions.size > 1, "O agente não deve ficar preso a uma coordenada fixa.");
+    });
+});
+
+test("Reiniciar uma busca manual preserva o início sorteado para comparar algoritmos", () => {
+    withSeededRandom(() => {
+        const simulation = new Simulation();
+        simulation.generateNewMap();
+        const start = simulation.agent.position;
+        const food = simulation.food.position;
+        simulation.startSearch();
+        runSimulation(simulation);
+        assert.strictEqual(simulation.agent.position, food);
+
+        simulation.ui.setSelectedAlgorithm("UCS");
+        simulation.startSearch();
+        assert.strictEqual(simulation.agent.position, start);
+        assert.strictEqual(simulation.search.start, start);
+        assert.strictEqual(simulation.search.goal, food);
+        assert.strictEqual(simulation.results.size, 1);
+        runSimulation(simulation);
+        assert.strictEqual(simulation.results.size, 2);
+    });
 });
 
 test("Simulation percorre WAITING → SEARCHING → MOVING → COLLECTING com todos os algoritmos", () => {
@@ -321,7 +369,8 @@ test("Reiniciar gera outro mapa e limpa a busca em qualquer estado", () => {
             assert.strictEqual(simulation.search, null);
             assert.strictEqual(simulation.searchAlgorithmName, null);
             assert.strictEqual(simulation.stepBudget, 0);
-            assert.strictEqual(simulation.agent.position, simulation.grid.getCell(0, 0));
+            assert.strictEqual(simulation.agent.position, simulation.initialAgentCell);
+            assert.ok(simulation.agent.position.walkable);
             assert.strictEqual(simulation.agent.isMoving, false);
             assert.deepStrictEqual(simulation.agent.path, []);
             assert.strictEqual(simulation.results.size, 0);
