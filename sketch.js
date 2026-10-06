@@ -4,9 +4,9 @@ function setup() {
     createCanvas(800, 600);
 
     simulation = new Simulation({
-        cols: 20,
-        rows: 15,
-        cellSize: 40
+        cols: 40,
+        rows: 30,
+        cellSize: 20
     });
     simulation.generateNewMap();
 }

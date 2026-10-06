@@ -1,8 +1,8 @@
 class Simulation {
     constructor(options = {}) {
-        const cols = options.cols || 20;
-        const rows = options.rows || 15;
-        const cellSize = options.cellSize || 40;
+        const cols = options.cols || 40;
+        const rows = options.rows || 30;
+        const cellSize = options.cellSize || 20;
 
         this.grid = new Grid(cols, rows, cellSize);
         this.initialAgentCell = this.grid.getRandomWalkableCell();

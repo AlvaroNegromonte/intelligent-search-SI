@@ -1487,9 +1487,9 @@ const SimulationState = Object.freeze({
 // ========================================
 class Simulation {
     constructor(options = {}) {
-        const cols = options.cols || 20;
-        const rows = options.rows || 15;
-        const cellSize = options.cellSize || 40;
+        const cols = options.cols || 40;
+        const rows = options.rows || 30;
+        const cellSize = options.cellSize || 20;
 
         this.grid = new Grid(cols, rows, cellSize);
         this.initialAgentCell = this.grid.getRandomWalkableCell();
@@ -1759,9 +1759,9 @@ function setup() {
     createCanvas(800, 600);
 
     simulation = new Simulation({
-        cols: 20,
-        rows: 15,
-        cellSize: 40
+        cols: 40,
+        rows: 30,
+        cellSize: 20
     });
     simulation.generateNewMap();
 }
