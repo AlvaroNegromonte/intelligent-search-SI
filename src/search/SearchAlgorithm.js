@@ -10,6 +10,9 @@ class SearchAlgorithm {
         this.finished = false;
         this.found = false;
         this.cameFrom = new Map();
+        this.visitedCells = new Set();
+        this.currentCell = null;
+        this.expansions = 0;
     }
 
     step() {
@@ -22,6 +25,20 @@ class SearchAlgorithm {
 
     getPath() {
         return this.finalPath;
+    }
+
+    recordVisit(cell) {
+        this.currentCell = cell;
+
+        if (!this.visitedCells.has(cell)) {
+            this.visitedCells.add(cell);
+            this.visited.push(cell);
+        }
+
+        // O objetivo termina a busca sem examinar seus vizinhos.
+        if (cell !== this.goal) {
+            this.expansions += 1;
+        }
     }
 
     reconstructPath() {
@@ -65,5 +82,8 @@ class SearchAlgorithm {
         this.finished = false;
         this.found = false;
         this.cameFrom = new Map();
+        this.visitedCells.clear();
+        this.currentCell = null;
+        this.expansions = 0;
     }
 }

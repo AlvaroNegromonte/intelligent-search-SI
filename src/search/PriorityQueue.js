@@ -3,20 +3,22 @@ class PriorityQueue {
         this.items = [];
     }
 
-    enqueue(element, priority) {
+    enqueue(element, priority, tieBreaker = 0) {
         const existingItem = this.items.find((item) => item.element === element);
 
         if (existingItem) {
-            if (priority >= existingItem.priority) {
+            if (priority > existingItem.priority
+                || (priority === existingItem.priority && tieBreaker >= existingItem.tieBreaker)) {
                 return;
             }
 
             existingItem.priority = priority;
+            existingItem.tieBreaker = tieBreaker;
         } else {
-            this.items.push({ element, priority });
+            this.items.push({ element, priority, tieBreaker });
         }
 
-        this.items.sort((itemA, itemB) => itemA.priority - itemB.priority);
+        this.items.sort((itemA, itemB) => itemA.priority - itemB.priority || itemA.tieBreaker - itemB.tieBreaker);
     }
 
     dequeue() {

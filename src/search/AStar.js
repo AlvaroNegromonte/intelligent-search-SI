@@ -1,9 +1,17 @@
 class AStar extends SearchAlgorithm {
-    constructor(grid, start, goal) {
+    constructor(grid, start, goal, weight = AStar.DEFAULT_WEIGHT) {
         super(grid, start, goal);
+        if (!Number.isFinite(weight) || weight < AStar.MIN_WEIGHT || weight > AStar.MAX_WEIGHT) {
+            throw new Error("Peso do A* deve estar entre 1 e 5.");
+        }
+
+        this.weight = weight;
+        this.minimumStepCost = Math.min(...Object.keys(Terrain.TYPES)
+            .filter((type) => Terrain.isWalkable(type)).map((type) => Terrain.getCost(type)));
         this.priorityQueue = new PriorityQueue();
         this.costSoFar = new Map();
         this.closed = new Set();
+        this.reopened = 0;
 
         this.init();
     }
@@ -11,23 +19,17 @@ class AStar extends SearchAlgorithm {
     init() {
         if (this.start) {
             this.costSoFar.set(this.start, 0);
-            this.priorityQueue.enqueue(this.start, this.getPriority(this.start, 0));
+            this.priorityQueue.enqueue(this.start, this.getPriority(this.start, 0), this.heuristic(this.start));
             this.frontier = this.priorityQueue.toArray();
         }
     }
 
     heuristic(cell) {
-        // O peso 50 favorece a proximidade do objetivo, mas pode superestimar
-        // o custo restante e não garante um caminho de custo mínimo.
-        return Heuristics.manhattan(cell, this.goal) * AStar.HEURISTIC_WEIGHT;
+        return Heuristics.manhattan(cell, this.goal) * this.minimumStepCost;
     }
 
     getPriority(cell, costToCell) {
-        const estimate = this.heuristic(cell);
-
-        // Em empates de f = g + h, prefere o nó mais perto do objetivo.
-        // O desempate é menor que qualquer diferença de custo, então não muda a ordem por f.
-        return costToCell + estimate + estimate * AStar.TIE_BREAK;
+        return costToCell + this.weight * this.heuristic(cell);
     }
 
     step() {
@@ -42,7 +44,7 @@ class AStar extends SearchAlgorithm {
 
         const current = this.priorityQueue.dequeue();
         this.closed.add(current);
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.frontier = this.priorityQueue.toArray();
@@ -54,17 +56,17 @@ class AStar extends SearchAlgorithm {
         const neighbors = this.grid.getNeighbors(current);
 
         for (const neighbor of neighbors) {
-            // Esta versão ponderada não reabre nós já expandidos.
-            if (this.closed.has(neighbor)) {
-                continue;
-            }
-
             const newCost = currentCost + neighbor.cost;
 
             if (!this.costSoFar.has(neighbor) || newCost < this.costSoFar.get(neighbor)) {
                 this.costSoFar.set(neighbor, newCost);
                 this.cameFrom.set(neighbor, current);
-                this.priorityQueue.enqueue(neighbor, this.getPriority(neighbor, newCost));
+                if (this.closed.delete(neighbor)) {
+                    this.reopened += 1;
+                }
+
+                // O menor h desempata apenas prioridades f exatamente iguais.
+                this.priorityQueue.enqueue(neighbor, this.getPriority(neighbor, newCost), this.heuristic(neighbor));
             }
         }
 
@@ -76,9 +78,11 @@ class AStar extends SearchAlgorithm {
         this.priorityQueue.clear();
         this.costSoFar.clear();
         this.closed = new Set();
+        this.reopened = 0;
         this.init();
     }
 }
 
-AStar.HEURISTIC_WEIGHT = 50;
-AStar.TIE_BREAK = 1e-6;
+AStar.DEFAULT_WEIGHT = 2;
+AStar.MIN_WEIGHT = 1;
+AStar.MAX_WEIGHT = 5;

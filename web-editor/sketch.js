@@ -352,6 +352,9 @@ class SearchAlgorithm {
         this.finished = false;
         this.found = false;
         this.cameFrom = new Map();
+        this.visitedCells = new Set();
+        this.currentCell = null;
+        this.expansions = 0;
     }
 
     step() {
@@ -364,6 +367,20 @@ class SearchAlgorithm {
 
     getPath() {
         return this.finalPath;
+    }
+
+    recordVisit(cell) {
+        this.currentCell = cell;
+
+        if (!this.visitedCells.has(cell)) {
+            this.visitedCells.add(cell);
+            this.visited.push(cell);
+        }
+
+        // O objetivo termina a busca sem examinar seus vizinhos.
+        if (cell !== this.goal) {
+            this.expansions += 1;
+        }
     }
 
     reconstructPath() {
@@ -407,6 +424,9 @@ class SearchAlgorithm {
         this.finished = false;
         this.found = false;
         this.cameFrom = new Map();
+        this.visitedCells.clear();
+        this.currentCell = null;
+        this.expansions = 0;
     }
 }
 
@@ -419,20 +439,22 @@ class PriorityQueue {
         this.items = [];
     }
 
-    enqueue(element, priority) {
+    enqueue(element, priority, tieBreaker = 0) {
         const existingItem = this.items.find((item) => item.element === element);
 
         if (existingItem) {
-            if (priority >= existingItem.priority) {
+            if (priority > existingItem.priority
+                || (priority === existingItem.priority && tieBreaker >= existingItem.tieBreaker)) {
                 return;
             }
 
             existingItem.priority = priority;
+            existingItem.tieBreaker = tieBreaker;
         } else {
-            this.items.push({ element, priority });
+            this.items.push({ element, priority, tieBreaker });
         }
 
-        this.items.sort((itemA, itemB) => itemA.priority - itemB.priority);
+        this.items.sort((itemA, itemB) => itemA.priority - itemB.priority || itemA.tieBreaker - itemB.tieBreaker);
     }
 
     dequeue() {
@@ -517,7 +539,7 @@ class BFS extends SearchAlgorithm {
 
         const current = this.queue.shift();
         this.frontier = [...this.queue];
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.finish(true);
@@ -578,7 +600,7 @@ class DFS extends SearchAlgorithm {
         // LIFO: o último nó empilhado é o próximo a ser processado.
         const current = this.stack.pop();
         this.frontier = [...this.stack];
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.finish(true);
@@ -643,7 +665,7 @@ class UniformCostSearch extends SearchAlgorithm {
 
         const current = this.priorityQueue.dequeue();
         this.frontier = this.priorityQueue.toArray();
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.finish(true);
@@ -713,7 +735,7 @@ class GreedySearch extends SearchAlgorithm {
 
         // A gulosa ignora o custo acumulado: expande o nó que parece mais perto do objetivo.
         const current = this.priorityQueue.dequeue();
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.frontier = this.priorityQueue.toArray();
@@ -747,11 +769,19 @@ class GreedySearch extends SearchAlgorithm {
 // src/search/AStar.js
 // ========================================
 class AStar extends SearchAlgorithm {
-    constructor(grid, start, goal) {
+    constructor(grid, start, goal, weight = AStar.DEFAULT_WEIGHT) {
         super(grid, start, goal);
+        if (!Number.isFinite(weight) || weight < AStar.MIN_WEIGHT || weight > AStar.MAX_WEIGHT) {
+            throw new Error("Peso do A* deve estar entre 1 e 5.");
+        }
+
+        this.weight = weight;
+        this.minimumStepCost = Math.min(...Object.keys(Terrain.TYPES)
+            .filter((type) => Terrain.isWalkable(type)).map((type) => Terrain.getCost(type)));
         this.priorityQueue = new PriorityQueue();
         this.costSoFar = new Map();
         this.closed = new Set();
+        this.reopened = 0;
 
         this.init();
     }
@@ -759,23 +789,17 @@ class AStar extends SearchAlgorithm {
     init() {
         if (this.start) {
             this.costSoFar.set(this.start, 0);
-            this.priorityQueue.enqueue(this.start, this.getPriority(this.start, 0));
+            this.priorityQueue.enqueue(this.start, this.getPriority(this.start, 0), this.heuristic(this.start));
             this.frontier = this.priorityQueue.toArray();
         }
     }
 
     heuristic(cell) {
-        // O peso 50 favorece a proximidade do objetivo, mas pode superestimar
-        // o custo restante e não garante um caminho de custo mínimo.
-        return Heuristics.manhattan(cell, this.goal) * AStar.HEURISTIC_WEIGHT;
+        return Heuristics.manhattan(cell, this.goal) * this.minimumStepCost;
     }
 
     getPriority(cell, costToCell) {
-        const estimate = this.heuristic(cell);
-
-        // Em empates de f = g + h, prefere o nó mais perto do objetivo.
-        // O desempate é menor que qualquer diferença de custo, então não muda a ordem por f.
-        return costToCell + estimate + estimate * AStar.TIE_BREAK;
+        return costToCell + this.weight * this.heuristic(cell);
     }
 
     step() {
@@ -790,7 +814,7 @@ class AStar extends SearchAlgorithm {
 
         const current = this.priorityQueue.dequeue();
         this.closed.add(current);
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.frontier = this.priorityQueue.toArray();
@@ -802,17 +826,17 @@ class AStar extends SearchAlgorithm {
         const neighbors = this.grid.getNeighbors(current);
 
         for (const neighbor of neighbors) {
-            // Esta versão ponderada não reabre nós já expandidos.
-            if (this.closed.has(neighbor)) {
-                continue;
-            }
-
             const newCost = currentCost + neighbor.cost;
 
             if (!this.costSoFar.has(neighbor) || newCost < this.costSoFar.get(neighbor)) {
                 this.costSoFar.set(neighbor, newCost);
                 this.cameFrom.set(neighbor, current);
-                this.priorityQueue.enqueue(neighbor, this.getPriority(neighbor, newCost));
+                if (this.closed.delete(neighbor)) {
+                    this.reopened += 1;
+                }
+
+                // O menor h desempata apenas prioridades f exatamente iguais.
+                this.priorityQueue.enqueue(neighbor, this.getPriority(neighbor, newCost), this.heuristic(neighbor));
             }
         }
 
@@ -824,12 +848,14 @@ class AStar extends SearchAlgorithm {
         this.priorityQueue.clear();
         this.costSoFar.clear();
         this.closed = new Set();
+        this.reopened = 0;
         this.init();
     }
 }
 
-AStar.HEURISTIC_WEIGHT = 50;
-AStar.TIE_BREAK = 1e-6;
+AStar.DEFAULT_WEIGHT = 2;
+AStar.MIN_WEIGHT = 1;
+AStar.MAX_WEIGHT = 5;
 
 
 // ========================================
@@ -1459,12 +1485,12 @@ class SearchVisualizer {
     }
 
     drawCurrent(search) {
-        // O último nó visitado é o que acabou de ser expandido.
+        // Uma reabertura pode expandir uma célula que já aparece em visited.
         if (search.isFinished() || search.visited.length === 0) {
             return;
         }
 
-        const current = search.visited[search.visited.length - 1];
+        const current = search.currentCell || search.visited[search.visited.length - 1];
 
         push();
         noFill();

@@ -28,7 +28,7 @@ class DFS extends SearchAlgorithm {
         // LIFO: o último nó empilhado é o próximo a ser processado.
         const current = this.stack.pop();
         this.frontier = [...this.stack];
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.finish(true);

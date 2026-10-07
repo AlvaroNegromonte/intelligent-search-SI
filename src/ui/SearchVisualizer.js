@@ -67,12 +67,12 @@ class SearchVisualizer {
     }
 
     drawCurrent(search) {
-        // O último nó visitado é o que acabou de ser expandido.
+        // Uma reabertura pode expandir uma célula que já aparece em visited.
         if (search.isFinished() || search.visited.length === 0) {
             return;
         }
 
-        const current = search.visited[search.visited.length - 1];
+        const current = search.currentCell || search.visited[search.visited.length - 1];
 
         push();
         noFill();

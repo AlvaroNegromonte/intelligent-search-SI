@@ -27,7 +27,7 @@ class BFS extends SearchAlgorithm {
 
         const current = this.queue.shift();
         this.frontier = [...this.queue];
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.finish(true);
