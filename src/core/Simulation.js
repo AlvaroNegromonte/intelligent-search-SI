@@ -22,12 +22,15 @@ class Simulation {
         this.resultsGoal = null;
         this.state = SimulationState.WAITING;
         this.paused = false;
+        this.comparing = false;
+        this.comparisonQueue = [];
 
         this.ui.initialize();
     }
 
     generateNewMap() {
         this.paused = false;
+        this.cancelComparison();
         this.grid.generateProcedural();
 
         const startCell = this.grid.getRandomWalkableCell();
@@ -97,6 +100,8 @@ class Simulation {
                 this.applyGridSize(this.ui.getGridDimensions());
             } else if (action === UI.ACTIONS.TOGGLE_PAUSE) {
                 this.paused = !this.paused;
+            } else if (action === UI.ACTIONS.COMPARE_ASTAR) {
+                this.startComparison();
             }
         }
     }
@@ -126,6 +131,17 @@ class Simulation {
 
     handleSearchFinished() {
         this.recordResult();
+
+        if (this.comparing) {
+            if (this.comparisonQueue.length > 0) {
+                this.startNextComparisonSearch();
+            } else {
+                this.comparing = false;
+                this.message = "Comparação concluída.";
+                this.setState(SimulationState.WAITING);
+            }
+            return;
+        }
 
         if (!this.search.found) {
             this.message = "Nenhum caminho até a comida foi encontrado.";
@@ -177,6 +193,9 @@ class Simulation {
 
     startSearch(options = {}) {
         this.paused = false;
+        if (options.comparing !== true) {
+            this.cancelComparison();
+        }
         if (!this.food.position) {
             this.message = "Não há comida alcançável neste mapa.";
             this.setState(SimulationState.WAITING);
@@ -196,12 +215,14 @@ class Simulation {
 
         this.resultsStart = this.agent.position;
         this.resultsGoal = this.food.position;
-        const algorithmName = this.ui.getSelectedAlgorithm();
+        const algorithmName = options.algorithmName || this.ui.getSelectedAlgorithm();
+        const weight = options.weight === undefined ? this.ui.getAStarWeight() : options.weight;
 
         this.search = this.createSearchAlgorithm(
             algorithmName,
             this.agent.position,
-            this.food.position
+            this.food.position,
+            weight
         );
         this.searchAlgorithmName = algorithmName;
         this.stepBudget = 0;
@@ -210,7 +231,31 @@ class Simulation {
         this.setState(SimulationState.SEARCHING);
     }
 
-    createSearchAlgorithm(algorithmName, start, goal) {
+    cancelComparison() {
+        this.comparing = false;
+        this.comparisonQueue = [];
+    }
+
+    startComparison() {
+        if (!this.food.position) {
+            this.message = "Não há comida alcançável neste mapa.";
+            return;
+        }
+
+        this.comparing = true;
+        this.comparisonQueue = [
+            { algorithmName: "UCS" },
+            ...UI.COMPARISON_WEIGHTS.map((weight) => ({ algorithmName: "ASTAR", weight }))
+        ];
+        this.startNextComparisonSearch();
+    }
+
+    startNextComparisonSearch() {
+        const next = this.comparisonQueue.shift();
+        this.startSearch({ ...next, comparing: true });
+    }
+
+    createSearchAlgorithm(algorithmName, start, goal, weight = this.ui.getAStarWeight()) {
         if (algorithmName === "BFS") {
             return new BFS(this.grid, start, goal);
         }
@@ -228,7 +273,7 @@ class Simulation {
         }
 
         if (algorithmName === "ASTAR") {
-            return new AStar(this.grid, start, goal);
+            return new AStar(this.grid, start, goal, weight);
         }
 
         throw new Error(`Algoritmo desconhecido: ${algorithmName}`);
@@ -237,9 +282,14 @@ class Simulation {
     recordResult() {
         const path = this.search.getPath();
 
-        this.results.set(this.searchAlgorithmName, {
+        const weight = this.searchAlgorithmName === "ASTAR" ? this.search.weight : null;
+        const key = weight === null ? this.searchAlgorithmName : `ASTAR:${weight}`;
+        this.results.set(key, {
+            algorithm: this.searchAlgorithmName,
+            weight,
             found: this.search.found,
             visited: this.search.visited.length,
+            expansions: this.search.expansions,
             pathSteps: Math.max(path.length - 1, 0),
             pathCost: this.getPathCost(path)
         });
@@ -259,12 +309,16 @@ class Simulation {
     getStatus() {
         const search = this.search;
         const path = search ? search.getPath() : [];
+        const algorithm = this.searchAlgorithmName || this.ui.getSelectedAlgorithm();
 
         return {
             state: this.state,
             paused: this.paused,
-            algorithm: this.searchAlgorithmName || this.ui.getSelectedAlgorithm(),
+            algorithm,
+            weight: algorithm === "ASTAR" ? (search ? search.weight : this.ui.getAStarWeight()) : null,
+            comparing: this.comparing,
             visited: search ? search.visited.length : 0,
+            expansions: search ? search.expansions : 0,
             frontier: search ? search.frontier.length : 0,
             pathSteps: Math.max(path.length - 1, 0),
             pathCost: this.getPathCost(path),

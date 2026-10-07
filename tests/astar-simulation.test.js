@@ -323,7 +323,7 @@ test("Simulation percorre WAITING → SEARCHING → MOVING → COLLECTING com to
             assert.ok(seenStates.has(SimulationState.MOVING), name);
             assert.strictEqual(simulation.state, SimulationState.COLLECTING, name);
             assert.strictEqual(simulation.agent.position, simulation.food.position, name);
-            assert.ok(simulation.results.get(name).found, name);
+            assert.ok(simulation.results.get(name === "ASTAR" ? "ASTAR:2" : name).found, name);
         }
 
         assert.strictEqual(simulation.score, simulation.ui.availableAlgorithms.length);

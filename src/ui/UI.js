@@ -3,9 +3,11 @@ class UI {
         this.availableAlgorithms = ["BFS", "DFS", "UCS", "GREEDY", "ASTAR"];
         this.selectedAlgorithm = "BFS";
         this.speed = 1;
+        this.aStarWeight = AStar.DEFAULT_WEIGHT;
         this.pendingActions = [];
         this.controls = null;
         this.lastStatusHtml = "";
+        this.lastResultsHtml = "";
         this.gridDimensions = { ...gridDimensions };
     }
 
@@ -24,6 +26,11 @@ class UI {
             colsInput: null,
             rowsInput: null,
             pauseButton: null,
+            aStarGroup: null,
+            weightSlider: null,
+            weightLabel: null,
+            comparisonButton: null,
+            results: null,
             speedSlider: null,
             speedLabel: null,
             status: null
@@ -31,6 +38,7 @@ class UI {
 
         this.createGridControls(panel);
         this.controls.algorithmSelect = this.createAlgorithmSelect(panel);
+        this.createAStarControls(panel);
         this.createActionButtons(panel);
         this.createSpeedControl(panel);
 
@@ -39,6 +47,9 @@ class UI {
         this.controls.status.parent(panel);
 
         this.createLegend(panel);
+        this.controls.results = createDiv();
+        this.controls.results.addClass("comparison");
+        this.controls.results.style("display", "none");
     }
 
     createGridControls(panel) {
@@ -109,8 +120,43 @@ class UI {
         }
 
         select.selected(this.selectedAlgorithm);
+        select.attribute("aria-label", "Algoritmo");
         select.parent(group);
         return select;
+    }
+
+    createAStarControls(panel) {
+        const group = this.createGroup(panel, "Peso da heurística");
+        this.controls.aStarGroup = group;
+        const row = createDiv();
+        row.addClass("speed");
+        row.parent(group);
+        this.controls.weightSlider = createSlider(AStar.MIN_WEIGHT, AStar.MAX_WEIGHT, this.aStarWeight, 0.25);
+        this.controls.weightSlider.attribute("aria-label", "Peso da heurística");
+        this.controls.weightSlider.parent(row);
+        this.controls.weightLabel = createSpan(`${this.aStarWeight}x`);
+        this.controls.weightLabel.parent(row);
+        this.controls.comparisonButton = createButton("Comparar pesos com UCS");
+        this.controls.comparisonButton.addClass("apply-grid");
+        this.controls.comparisonButton.parent(group);
+        this.controls.comparisonButton.mousePressed(() => this.requestAction(UI.ACTIONS.COMPARE_ASTAR));
+        group.style("display", this.selectedAlgorithm === "ASTAR" ? "flex" : "none");
+    }
+
+    getAStarWeight() {
+        return this.aStarWeight;
+    }
+
+    setAStarWeight(weight) {
+        if (!Number.isFinite(weight) || weight < AStar.MIN_WEIGHT || weight > AStar.MAX_WEIGHT) {
+            return false;
+        }
+
+        this.aStarWeight = weight;
+        if (this.controls) {
+            this.controls.weightSlider.value(weight);
+        }
+        return true;
     }
 
     createActionButtons(panel) {
@@ -234,6 +280,8 @@ class UI {
         }
 
         this.speed = Number(this.controls.speedSlider.value());
+        this.setAStarWeight(Number(this.controls.weightSlider.value()));
+        this.controls.aStarGroup.style("display", this.selectedAlgorithm === "ASTAR" ? "flex" : "none");
     }
 
     display(status) {
@@ -244,6 +292,8 @@ class UI {
         this.controls.speedLabel.html(this.formatSpeed(this.speed));
         this.controls.pauseButton.html(status.paused ? "Retomar" : "Pausar");
         this.controls.pauseButton.attribute("aria-pressed", String(status.paused));
+        this.controls.weightLabel.html(`${this.aStarWeight}x`);
+        this.controls.comparisonButton.html(status.comparing ? "Reiniciar comparação" : "Comparar pesos com UCS");
 
         // Só reescreve o painel quando algo muda, para não refazer o DOM a cada quadro.
         const html = this.buildStatusHtml(status);
@@ -251,6 +301,13 @@ class UI {
         if (html !== this.lastStatusHtml) {
             this.controls.status.html(html);
             this.lastStatusHtml = html;
+        }
+
+        const resultsHtml = this.buildResultsHtml(status.results);
+        if (resultsHtml !== this.lastResultsHtml) {
+            this.controls.results.html(resultsHtml);
+            this.controls.results.style("display", resultsHtml ? "block" : "none");
+            this.lastResultsHtml = resultsHtml;
         }
     }
 
@@ -263,15 +320,23 @@ class UI {
         }
 
         html += "<dl>";
-        html += `<dt>Algoritmo</dt><dd>${UI.ALGORITHM_LABELS[status.algorithm]}</dd>`;
-        html += `<dt>Nós visitados</dt><dd>${status.visited}</dd>`;
+        html += `<dt>Algoritmo</dt><dd>${this.getAlgorithmLabel(status.algorithm, status.weight)}</dd>`;
+        html += `<dt>Células visitadas</dt><dd>${status.visited}</dd>`;
+        html += `<dt>Expansões</dt><dd>${status.expansions}</dd>`;
         html += `<dt>Fronteira</dt><dd>${status.frontier}</dd>`;
         html += `<dt>Passos do caminho</dt><dd>${status.pathSteps}</dd>`;
         html += `<dt>Custo do caminho</dt><dd>${status.pathCost}</dd>`;
         html += `<dt>Comidas coletadas</dt><dd>${status.score}</dd>`;
         html += "</dl>";
 
-        return html + this.buildResultsHtml(status.results);
+        return html;
+    }
+
+    getAlgorithmLabel(algorithm, weight) {
+        if (algorithm === "ASTAR" && weight !== null && weight !== undefined) {
+            return `${weight === 1 ? "A* padrão" : "A* ponderado"} (${weight}x)`;
+        }
+        return UI.ALGORITHM_LABELS[algorithm];
     }
 
     buildResultsHtml(results) {
@@ -279,24 +344,31 @@ class UI {
             return "";
         }
 
-        let html = "<h2>Comparação neste mapa</h2><table><thead><tr>";
-        html += "<th>Algoritmo</th><th>Visitados</th><th>Passos</th><th>Custo</th>";
+        let html = "<h2>Comparação neste mapa</h2><div class=\"table-scroll\"><table><thead><tr>";
+        html += "<th>Algoritmo</th><th>Células visitadas</th><th>Expansões</th><th>Passos</th><th>Custo</th><th>Adicional vs UCS</th>";
         html += "</tr></thead><tbody>";
+        const reference = results.get("UCS");
+        const orderedResults = [...results.values()].sort((a, b) =>
+            this.availableAlgorithms.indexOf(a.algorithm) - this.availableAlgorithms.indexOf(b.algorithm)
+            || (a.weight || 0) - (b.weight || 0)
+        );
 
-        for (const name of this.availableAlgorithms) {
-            const result = results.get(name);
-
-            if (!result) {
-                continue;
-            }
-
+        for (const result of orderedResults) {
             const steps = result.found ? result.pathSteps : "—";
             const cost = result.found ? result.pathCost : "sem caminho";
-            html += `<tr><td>${name === "ASTAR" ? "A*" : name}</td><td>${result.visited}</td>`;
-            html += `<td>${steps}</td><td>${cost}</td></tr>`;
+            let excess = "—";
+            if (result.found && reference && reference.found) {
+                if (reference.pathCost > 0) {
+                    excess = `${((result.pathCost / reference.pathCost - 1) * 100).toFixed(1).replace(".", ",")}%`;
+                } else if (result.pathCost === 0) {
+                    excess = "0,0%";
+                }
+            }
+            html += `<tr><td>${this.getAlgorithmLabel(result.algorithm, result.weight)}</td><td>${result.visited}</td>`;
+            html += `<td>${result.expansions}</td><td>${steps}</td><td>${cost}</td><td>${excess}</td></tr>`;
         }
 
-        return html + "</tbody></table>";
+        return html + "</tbody></table></div>";
     }
 
     formatSpeed(speed) {
@@ -309,7 +381,8 @@ UI.ACTIONS = Object.freeze({
     RESET: "RESET",
     NEW_MAP: "NEW_MAP",
     APPLY_GRID: "APPLY_GRID",
-    TOGGLE_PAUSE: "TOGGLE_PAUSE"
+    TOGGLE_PAUSE: "TOGGLE_PAUSE",
+    COMPARE_ASTAR: "COMPARE_ASTAR"
 });
 
 UI.ALGORITHM_LABELS = Object.freeze({
@@ -332,6 +405,7 @@ UI.MAX_SPEED = 4;
 UI.SPEED_STEP = 0.25;
 UI.MIN_GRID_DIMENSION = 1;
 UI.MAX_GRID_DIMENSION = 100;
+UI.COMPARISON_WEIGHTS = Object.freeze([1, 1.5, 2, 3, 5]);
 
 // Mesmas cores usadas em Agent.display() e Food.display().
 UI.AGENT_COLOR = Object.freeze([220, 50, 50]);
