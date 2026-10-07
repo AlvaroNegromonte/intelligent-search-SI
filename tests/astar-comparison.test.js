@@ -9,8 +9,8 @@ for (const entry of ["index.html", "web-editor/index.html"]) {
     for (const match of fs.readFileSync(htmlPath, "utf8").matchAll(/<script src="\.\/([^"]+)"/g)) {
         vm.runInContext(fs.readFileSync(path.resolve(path.dirname(htmlPath), match[1]), "utf8"), context);
     }
-    const { Simulation, SimulationState, Terrain, UI } = vm.runInContext(
-        "({ Simulation, SimulationState, Terrain, UI })", context
+    const { Simulation, SimulationState, Terrain, UI, AStar } = vm.runInContext(
+        "({ Simulation, SimulationState, Terrain, UI, AStar })", context
     );
     function scenario() {
         const simulation = new Simulation({ cols: 3, rows: 2 });
@@ -63,11 +63,12 @@ for (const entry of ["index.html", "web-editor/index.html"]) {
         assert.strictEqual(simulation.agent.isMoving, false);
         assert.strictEqual(simulation.score, 7);
         assert.strictEqual(simulation.food.position, goal);
-        assert.strictEqual(simulation.results.size, 6);
+        assert.strictEqual(simulation.results.size, UI.COMPARISON_WEIGHTS.length + 1);
         assert.strictEqual(simulation.results.get("UCS").pathCost, 40);
         assert.strictEqual(simulation.results.get("ASTAR:1").pathCost, 40);
         assert.strictEqual(simulation.results.get("ASTAR:5").pathCost, 60);
-        assert.strictEqual(simulation.ui.getAStarWeight(), 2);
+        assert.strictEqual(simulation.ui.getAStarWeight(), AStar.DEFAULT_WEIGHT);
+        assert.ok(simulation.results.has(`ASTAR:${AStar.DEFAULT_WEIGHT}`));
         assert.strictEqual(simulation.ui.getSelectedAlgorithm(), "ASTAR");
         assert.strictEqual(JSON.stringify(simulation.grid.cells.map((row) => row.map((cell) => cell.terrainType))), terrain);
         for (const weight of UI.COMPARISON_WEIGHTS) {
@@ -122,7 +123,7 @@ for (const entry of ["index.html", "web-editor/index.html"]) {
         assert.strictEqual(simulation.score, 7);
         if (action === UI.ACTIONS.START) {
             assert.strictEqual(simulation.searchAlgorithmName, "ASTAR");
-            assert.strictEqual(simulation.search.weight, 2);
+            assert.strictEqual(simulation.search.weight, AStar.DEFAULT_WEIGHT);
         } else {
             assert.strictEqual(simulation.results.size, 0);
             assert.strictEqual(simulation.state, SimulationState.WAITING);
@@ -137,7 +138,7 @@ for (const entry of ["index.html", "web-editor/index.html"]) {
     while (blocked.comparing) {
         blocked.update();
     }
-    assert.strictEqual(blocked.results.size, 6);
+    assert.strictEqual(blocked.results.size, UI.COMPARISON_WEIGHTS.length + 1);
     assert.ok([...blocked.results.values()].every((result) => !result.found));
     assert.ok(blocked.ui.buildResultsHtml(blocked.results).includes("sem caminho"));
     assert.strictEqual(blocked.state, SimulationState.WAITING);

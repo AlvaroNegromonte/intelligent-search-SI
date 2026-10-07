@@ -116,12 +116,12 @@ test("AStar processa no máximo um nó por step() e mantém Cells na fronteira",
     assert.ok(astar.frontier.every((cell) => cell instanceof Cell));
 });
 
-test("AStar usa Manhattan vezes o menor custo e peso padrão 2", () => {
+test("AStar usa Manhattan vezes o menor custo e peso padrão 1,75", () => {
     const grid = new Grid(5, 5, 40);
     const astar = new AStar(grid, grid.getCell(0, 0), grid.getCell(3, 4));
     assert.strictEqual(astar.heuristic(grid.getCell(0, 0)), 70);
-    assert.strictEqual(astar.weight, 2);
-    assert.strictEqual(astar.getPriority(astar.start, 30), 170);
+    assert.strictEqual(astar.weight, 1.75);
+    assert.strictEqual(astar.getPriority(astar.start, 30), 152.5);
     assert.strictEqual(astar.heuristic(astar.goal), 0);
 });
 
@@ -323,7 +323,7 @@ test("Simulation percorre WAITING → SEARCHING → MOVING → COLLECTING com to
             assert.ok(seenStates.has(SimulationState.MOVING), name);
             assert.strictEqual(simulation.state, SimulationState.COLLECTING, name);
             assert.strictEqual(simulation.agent.position, simulation.food.position, name);
-            assert.ok(simulation.results.get(name === "ASTAR" ? "ASTAR:2" : name).found, name);
+            assert.ok(simulation.results.get(name === "ASTAR" ? `ASTAR:${AStar.DEFAULT_WEIGHT}` : name).found, name);
         }
 
         assert.strictEqual(simulation.score, simulation.ui.availableAlgorithms.length);

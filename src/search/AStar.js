@@ -83,6 +83,6 @@ class AStar extends SearchAlgorithm {
     }
 }
 
-AStar.DEFAULT_WEIGHT = 2;
+AStar.DEFAULT_WEIGHT = 1.75;
 AStar.MIN_WEIGHT = 1;
 AStar.MAX_WEIGHT = 5;

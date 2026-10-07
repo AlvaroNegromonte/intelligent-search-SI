@@ -853,7 +853,7 @@ class AStar extends SearchAlgorithm {
     }
 }
 
-AStar.DEFAULT_WEIGHT = 2;
+AStar.DEFAULT_WEIGHT = 1.75;
 AStar.MIN_WEIGHT = 1;
 AStar.MAX_WEIGHT = 5;
 
@@ -1480,7 +1480,7 @@ UI.MAX_SPEED = 4;
 UI.SPEED_STEP = 0.25;
 UI.MIN_GRID_DIMENSION = 1;
 UI.MAX_GRID_DIMENSION = 100;
-UI.COMPARISON_WEIGHTS = Object.freeze([1, 1.5, 2, 3, 5]);
+UI.COMPARISON_WEIGHTS = Object.freeze([1, 1.5, 1.75, 2, 3, 5]);
 
 // Mesmas cores usadas em Agent.display() e Food.display().
 UI.AGENT_COLOR = Object.freeze([220, 50, 50]);
