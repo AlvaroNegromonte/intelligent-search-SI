@@ -1,13 +1,14 @@
 let simulation;
 
 function setup() {
-    createCanvas(800, 600);
-
-    simulation = new Simulation({
+    const options = {
         cols: 40,
         rows: 30,
         cellSize: 20
-    });
+    };
+    createCanvas(options.cols * options.cellSize, options.rows * options.cellSize);
+
+    simulation = new Simulation(options);
     simulation.generateNewMap();
 }
 

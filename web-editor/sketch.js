@@ -1048,13 +1048,14 @@ class Food {
 // src/ui/UI.js
 // ========================================
 class UI {
-    constructor() {
+    constructor(gridDimensions = { cols: 40, rows: 30 }) {
         this.availableAlgorithms = ["BFS", "DFS", "UCS", "GREEDY", "ASTAR"];
         this.selectedAlgorithm = "BFS";
         this.speed = 1;
         this.pendingActions = [];
         this.controls = null;
         this.lastStatusHtml = "";
+        this.gridDimensions = { ...gridDimensions };
     }
 
     initialize() {
@@ -1068,12 +1069,17 @@ class UI {
         createElement("h1", "Busca Inteligente em Grid").parent(panel);
 
         this.controls = {
-            algorithmSelect: this.createAlgorithmSelect(panel),
+            algorithmSelect: null,
+            colsInput: null,
+            rowsInput: null,
+            pauseButton: null,
             speedSlider: null,
             speedLabel: null,
             status: null
         };
 
+        this.createGridControls(panel);
+        this.controls.algorithmSelect = this.createAlgorithmSelect(panel);
         this.createActionButtons(panel);
         this.createSpeedControl(panel);
 
@@ -1082,6 +1088,65 @@ class UI {
         this.controls.status.parent(panel);
 
         this.createLegend(panel);
+    }
+
+    createGridControls(panel) {
+        const group = this.createGroup(panel, "Tamanho da grade");
+        const form = createElement("form");
+        form.parent(group);
+        const dimensions = createDiv();
+        dimensions.addClass("grid-dimensions");
+        dimensions.parent(form);
+
+        for (const [key, label] of [["cols", "Colunas"], ["rows", "Linhas"]]) {
+            const field = createDiv();
+            field.parent(dimensions);
+            const id = `grid-${key}`;
+            createElement("label", label).attribute("for", id).parent(field);
+            const input = createInput(String(this.gridDimensions[key]), "number");
+            input.id(id);
+            input.attribute("min", UI.MIN_GRID_DIMENSION);
+            input.attribute("max", UI.MAX_GRID_DIMENSION);
+            input.attribute("step", 1);
+            input.attribute("required", "");
+            input.parent(field);
+            this.controls[`${key}Input`] = input;
+        }
+
+        const applyButton = createButton("Aplicar tamanho");
+        applyButton.attribute("type", "submit");
+        applyButton.addClass("apply-grid");
+        applyButton.parent(form);
+        form.elt.addEventListener("submit", (event) => {
+            event.preventDefault();
+            this.requestAction(UI.ACTIONS.APPLY_GRID);
+        });
+    }
+
+    getGridDimensions() {
+        if (!this.controls) {
+            return { ...this.gridDimensions };
+        }
+
+        return {
+            cols: Number(this.controls.colsInput.value()),
+            rows: Number(this.controls.rowsInput.value())
+        };
+    }
+
+    setGridDimensions(dimensions) {
+        this.gridDimensions = { ...dimensions };
+
+        if (this.controls) {
+            this.controls.colsInput.value(dimensions.cols);
+            this.controls.rowsInput.value(dimensions.rows);
+        }
+    }
+
+    static isValidGridDimensions(dimensions) {
+        return dimensions && [dimensions.cols, dimensions.rows].every((value) =>
+            Number.isInteger(value) && value >= UI.MIN_GRID_DIMENSION && value <= UI.MAX_GRID_DIMENSION
+        );
     }
 
     createAlgorithmSelect(panel) {
@@ -1104,6 +1169,7 @@ class UI {
 
         const buttons = [
             { label: "Iniciar busca", action: UI.ACTIONS.START, primary: true },
+            { label: "Pausar", action: UI.ACTIONS.TOGGLE_PAUSE },
             { label: "Reiniciar", action: UI.ACTIONS.RESET },
             { label: "Novo mapa", action: UI.ACTIONS.NEW_MAP }
         ];
@@ -1112,6 +1178,11 @@ class UI {
             const button = createButton(definition.label);
             button.parent(group);
             button.mousePressed(() => this.requestAction(definition.action));
+
+            if (definition.action === UI.ACTIONS.TOGGLE_PAUSE) {
+                this.controls.pauseButton = button;
+                button.attribute("aria-pressed", "false");
+            }
 
             if (definition.primary) {
                 button.addClass("primary");
@@ -1220,6 +1291,8 @@ class UI {
         }
 
         this.controls.speedLabel.html(this.formatSpeed(this.speed));
+        this.controls.pauseButton.html(status.paused ? "Retomar" : "Pausar");
+        this.controls.pauseButton.attribute("aria-pressed", String(status.paused));
 
         // Só reescreve o painel quando algo muda, para não refazer o DOM a cada quadro.
         const html = this.buildStatusHtml(status);
@@ -1231,7 +1304,8 @@ class UI {
     }
 
     buildStatusHtml(status) {
-        let html = `<p class="state state-${status.state.toLowerCase()}">${UI.STATE_LABELS[status.state]}</p>`;
+        const stateLabel = status.paused ? "Pausado" : UI.STATE_LABELS[status.state];
+        let html = `<p class="state state-${status.state.toLowerCase()}">${stateLabel}</p>`;
 
         if (status.message) {
             html += `<p class="message">${status.message}</p>`;
@@ -1282,7 +1356,9 @@ class UI {
 UI.ACTIONS = Object.freeze({
     START: "START",
     RESET: "RESET",
-    NEW_MAP: "NEW_MAP"
+    NEW_MAP: "NEW_MAP",
+    APPLY_GRID: "APPLY_GRID",
+    TOGGLE_PAUSE: "TOGGLE_PAUSE"
 });
 
 UI.ALGORITHM_LABELS = Object.freeze({
@@ -1303,6 +1379,8 @@ UI.STATE_LABELS = Object.freeze({
 UI.MIN_SPEED = 0.25;
 UI.MAX_SPEED = 4;
 UI.SPEED_STEP = 0.25;
+UI.MIN_GRID_DIMENSION = 1;
+UI.MAX_GRID_DIMENSION = 100;
 
 // Mesmas cores usadas em Agent.display() e Food.display().
 UI.AGENT_COLOR = Object.freeze([220, 50, 50]);
@@ -1321,12 +1399,12 @@ class SearchVisualizer {
         this.pathFrames = 0;
     }
 
-    display(search) {
+    display(search, paused = false) {
         if (!search) {
             return;
         }
 
-        this.updatePathAnimation(search);
+        this.updatePathAnimation(search, paused);
 
         this.drawVisited(search.visited);
         this.drawFrontier(search.frontier);
@@ -1334,12 +1412,12 @@ class SearchVisualizer {
         this.drawPath(search.finalPath);
     }
 
-    updatePathAnimation(search) {
+    updatePathAnimation(search, paused = false) {
         // Reinicia a animação quando uma nova busca começa ou a atual é reiniciada.
         if (search !== this.trackedSearch || search.finalPath.length === 0) {
             this.trackedSearch = search;
             this.pathFrames = 0;
-        } else {
+        } else if (!paused) {
             this.pathFrames += 1;
         }
     }
@@ -1496,7 +1574,7 @@ class Simulation {
         this.agent = new Agent(this.initialAgentCell);
         this.food = new Food(null);
         this.food.relocate(this.grid, this.agent.position);
-        this.ui = new UI();
+        this.ui = new UI({ cols, rows });
         this.searchVisualizer = new SearchVisualizer(cellSize);
         this.search = null;
         this.searchAlgorithmName = null;
@@ -1508,11 +1586,13 @@ class Simulation {
         this.resultsStart = null;
         this.resultsGoal = null;
         this.state = SimulationState.WAITING;
+        this.paused = false;
 
         this.ui.initialize();
     }
 
     generateNewMap() {
+        this.paused = false;
         this.grid.generateProcedural();
 
         const startCell = this.grid.getRandomWalkableCell();
@@ -1534,9 +1614,30 @@ class Simulation {
         this.generateNewMap();
     }
 
+    applyGridSize(dimensions) {
+        if (!UI.isValidGridDimensions(dimensions)) {
+            this.message = `Use colunas e linhas inteiras de ${UI.MIN_GRID_DIMENSION} a ${UI.MAX_GRID_DIMENSION}.`;
+            return false;
+        }
+
+        this.grid = new Grid(dimensions.cols, dimensions.rows, this.grid.cellSize);
+        this.ui.setGridDimensions(dimensions);
+        this.generateNewMap();
+
+        if (typeof resizeCanvas === "function") {
+            resizeCanvas(this.grid.cols * this.grid.cellSize, this.grid.rows * this.grid.cellSize, true);
+        }
+
+        return true;
+    }
+
     update() {
         this.ui.update();
         this.handleUIActions();
+
+        if (this.paused) {
+            return;
+        }
 
         if (this.state === SimulationState.WAITING) {
             this.updateWaiting();
@@ -1557,6 +1658,10 @@ class Simulation {
                 this.resetSimulation();
             } else if (action === UI.ACTIONS.NEW_MAP) {
                 this.generateNewMap();
+            } else if (action === UI.ACTIONS.APPLY_GRID) {
+                this.applyGridSize(this.ui.getGridDimensions());
+            } else if (action === UI.ACTIONS.TOGGLE_PAUSE) {
+                this.paused = !this.paused;
             }
         }
     }
@@ -1636,6 +1741,7 @@ class Simulation {
     }
 
     startSearch(options = {}) {
+        this.paused = false;
         if (!this.food.position) {
             this.message = "Não há comida alcançável neste mapa.";
             this.setState(SimulationState.WAITING);
@@ -1721,6 +1827,7 @@ class Simulation {
 
         return {
             state: this.state,
+            paused: this.paused,
             algorithm: this.searchAlgorithmName || this.ui.getSelectedAlgorithm(),
             visited: search ? search.visited.length : 0,
             frontier: search ? search.frontier.length : 0,
@@ -1734,7 +1841,7 @@ class Simulation {
 
     display() {
         this.grid.display();
-        this.searchVisualizer.display(this.search);
+        this.searchVisualizer.display(this.search, this.paused);
         this.food.display(this.grid.cellSize);
         this.agent.display(this.grid.cellSize);
         this.ui.display(this.getStatus());
@@ -1756,13 +1863,14 @@ class Simulation {
 let simulation;
 
 function setup() {
-    createCanvas(800, 600);
-
-    simulation = new Simulation({
+    const options = {
         cols: 40,
         rows: 30,
         cellSize: 20
-    });
+    };
+    createCanvas(options.cols * options.cellSize, options.rows * options.cellSize);
+
+    simulation = new Simulation(options);
     simulation.generateNewMap();
 }
 

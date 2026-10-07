@@ -9,7 +9,7 @@ class Simulation {
         this.agent = new Agent(this.initialAgentCell);
         this.food = new Food(null);
         this.food.relocate(this.grid, this.agent.position);
-        this.ui = new UI();
+        this.ui = new UI({ cols, rows });
         this.searchVisualizer = new SearchVisualizer(cellSize);
         this.search = null;
         this.searchAlgorithmName = null;
@@ -21,11 +21,13 @@ class Simulation {
         this.resultsStart = null;
         this.resultsGoal = null;
         this.state = SimulationState.WAITING;
+        this.paused = false;
 
         this.ui.initialize();
     }
 
     generateNewMap() {
+        this.paused = false;
         this.grid.generateProcedural();
 
         const startCell = this.grid.getRandomWalkableCell();
@@ -47,9 +49,30 @@ class Simulation {
         this.generateNewMap();
     }
 
+    applyGridSize(dimensions) {
+        if (!UI.isValidGridDimensions(dimensions)) {
+            this.message = `Use colunas e linhas inteiras de ${UI.MIN_GRID_DIMENSION} a ${UI.MAX_GRID_DIMENSION}.`;
+            return false;
+        }
+
+        this.grid = new Grid(dimensions.cols, dimensions.rows, this.grid.cellSize);
+        this.ui.setGridDimensions(dimensions);
+        this.generateNewMap();
+
+        if (typeof resizeCanvas === "function") {
+            resizeCanvas(this.grid.cols * this.grid.cellSize, this.grid.rows * this.grid.cellSize, true);
+        }
+
+        return true;
+    }
+
     update() {
         this.ui.update();
         this.handleUIActions();
+
+        if (this.paused) {
+            return;
+        }
 
         if (this.state === SimulationState.WAITING) {
             this.updateWaiting();
@@ -70,6 +93,10 @@ class Simulation {
                 this.resetSimulation();
             } else if (action === UI.ACTIONS.NEW_MAP) {
                 this.generateNewMap();
+            } else if (action === UI.ACTIONS.APPLY_GRID) {
+                this.applyGridSize(this.ui.getGridDimensions());
+            } else if (action === UI.ACTIONS.TOGGLE_PAUSE) {
+                this.paused = !this.paused;
             }
         }
     }
@@ -149,6 +176,7 @@ class Simulation {
     }
 
     startSearch(options = {}) {
+        this.paused = false;
         if (!this.food.position) {
             this.message = "Não há comida alcançável neste mapa.";
             this.setState(SimulationState.WAITING);
@@ -234,6 +262,7 @@ class Simulation {
 
         return {
             state: this.state,
+            paused: this.paused,
             algorithm: this.searchAlgorithmName || this.ui.getSelectedAlgorithm(),
             visited: search ? search.visited.length : 0,
             frontier: search ? search.frontier.length : 0,
@@ -247,7 +276,7 @@ class Simulation {
 
     display() {
         this.grid.display();
-        this.searchVisualizer.display(this.search);
+        this.searchVisualizer.display(this.search, this.paused);
         this.food.display(this.grid.cellSize);
         this.agent.display(this.grid.cellSize);
         this.ui.display(this.getStatus());

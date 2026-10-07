@@ -7,12 +7,12 @@ class SearchVisualizer {
         this.pathFrames = 0;
     }
 
-    display(search) {
+    display(search, paused = false) {
         if (!search) {
             return;
         }
 
-        this.updatePathAnimation(search);
+        this.updatePathAnimation(search, paused);
 
         this.drawVisited(search.visited);
         this.drawFrontier(search.frontier);
@@ -20,12 +20,12 @@ class SearchVisualizer {
         this.drawPath(search.finalPath);
     }
 
-    updatePathAnimation(search) {
+    updatePathAnimation(search, paused = false) {
         // Reinicia a animação quando uma nova busca começa ou a atual é reiniciada.
         if (search !== this.trackedSearch || search.finalPath.length === 0) {
             this.trackedSearch = search;
             this.pathFrames = 0;
-        } else {
+        } else if (!paused) {
             this.pathFrames += 1;
         }
     }

@@ -14,6 +14,8 @@ Os cinco algoritmos, a geração procedural de terreno, a visualização passo a
 
 Ao executar, aparece uma grade procedural de 40 × 30 células, com 20 pixels por célula, em um canvas de 800 × 600 pixels, com o agente sorteado em uma célula transitável e a comida sorteada em uma célula distante e alcançável. A simulação começa em `SimulationState.WAITING`, sem iniciar uma busca automaticamente.
 
+O tamanho pode ser alterado no painel: **Colunas** e **Linhas** aceitam inteiros de 1 a 100. **Aplicar tamanho** gera um novo mapa e ajusta o canvas, mantendo 20 pixels por célula. Em telas menores, o canvas é reduzido visualmente de forma proporcional.
+
 ## Como usar
 
 1. Abra a página. À esquerda fica o mapa; à direita, o painel de controles.
@@ -22,6 +24,8 @@ Ao executar, aparece uma grade procedural de 40 × 30 células, com 20 pixels po
 4. Quando a busca termina, o agente percorre o caminho. Ele anda mais devagar na lama (×0,6) e na água (×0,3).
 5. Ao alcançar a comida, o agente soma uma coleta. Outra comida distante e alcançável é sorteada no mesmo mapa, e o algoritmo selecionado inicia outra busca da posição atual do agente. A tabela **Comparação neste mapa** mostra nós visitados, passos e custo; os resultados permanecem durante o movimento e são limpos quando o início ou o objetivo muda. Para comparar algoritmos antes da coleta, troque a seleção e clique em **Iniciar busca**; esse início manual volta à posição inicial sorteada para o mapa.
 6. **Velocidade** acelera ou desacelera a busca e o agente (0,25x a 4x). **Reiniciar** e **Novo mapa** interrompem o ciclo, geram outro mapa aleatório e sorteiam as posições do agente e da comida novamente. Ambos limpam a busca e a comparação, mantêm a pontuação acumulada, o algoritmo e a velocidade selecionados e aguardam outro clique em **Iniciar busca**.
+7. Altere **Colunas** e **Linhas** e clique em **Aplicar tamanho**. A alteração interrompe a execução, limpa os caminhos e a comparação e volta a aguardar uma busca. Pontuação, algoritmo e velocidade são preservados. **Reiniciar** e **Novo mapa** mantêm o tamanho aplicado; editar os campos sozinho não altera o mapa. Em uma grade 1×1, não há espaço para comida e nenhuma busca é iniciada.
+8. **Pausar** congela a busca, o movimento, a coleta e a revelação do caminho final. **Retomar** continua do mesmo ponto. Os controles continuam disponíveis durante a pausa. Iniciar uma busca, reiniciar, gerar um mapa ou aplicar um tamanho válido encerra a pausa.
 
 ## Executando o projeto
 
@@ -219,6 +223,8 @@ Ao adicionar um arquivo, carregue-o depois de suas dependências e antes de quem
 - Durante `SEARCHING`, `updateSearching()` chama `step()` de acordo com a velocidade da interface: um por quadro em 1x, vários em velocidades maiores e um a cada poucos quadros abaixo de 1x. Ao terminar, registra o resultado na comparação; com sucesso, envia o caminho ao agente com `agent.setPath(path)` e entra em `MOVING`; uma falha volta a `WAITING`.
 - Durante `MOVING`, o agente recebe o tempo do quadro multiplicado pela velocidade. Quando `agent.isMoving` fica falso, `collectFood()` verifica se ele está na mesma célula da comida, soma exatamente um ponto e entra em `COLLECTING`. Uma parada antes da comida volta a `WAITING`, sem pontuar.
 - A `UI` não chama a `Simulation`: os botões enfileiram ações (`UI.ACTIONS`), que a simulação consome com `ui.consumeActions()` no início de `update()`. A `Simulation` envia os dados exibidos com `ui.display(simulation.getStatus())`.
+- `UI.ACTIONS.APPLY_GRID` aplica `ui.getGridDimensions()` por meio de `simulation.applyGridSize({ cols, rows })`. Somente inteiros de 1 a 100 são aceitos; valores inválidos retornam `false` sem substituir a grade. Uma aplicação válida recria as células, gera o terreno e ajusta o canvas para `cols * cellSize` por `rows * cellSize`, preservando a pontuação e as seleções. Os controles são inicializados com as dimensões da simulação.
+- `UI.ACTIONS.TOGGLE_PAUSE` alterna `simulation.paused`, exposto em `getStatus()`, sem mudar o estado do ciclo de vida. Enquanto pausada, `update()` processa controles, mas não avança a simulação; `SearchVisualizer.display(search, paused)` desenha as sobreposições sem avançar a animação do caminho.
 - No próximo quadro em `COLLECTING`, `updateCollecting()` chama `food.relocate(grid, agent.position)`, limpa a comparação e a busca anterior e inicia outra busca da célula atual. O terreno permanece igual. Se não houver objetivo válido, a simulação volta a `WAITING`; uma busca sem caminho também espera intervenção do usuário, sem repetir automaticamente.
 - `Simulation` e `UI` devem usar o contrato público da busca, sem depender de `queue`, `stack`, `priorityQueue` ou `costSoFar`.
 - Mantenha as mudanças de estado nos métodos de atualização e a renderização nos métodos `display()`. O código de desenho não deve avançar a simulação.
