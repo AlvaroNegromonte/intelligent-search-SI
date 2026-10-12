@@ -17,15 +17,19 @@ body {
 
 canvas {
     display: block;
+    max-width: 100%;
+    height: auto !important;
     border-radius: 6px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 .panel {
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    width: 300px;
+    width: 332px;
+    max-width: 100%;
     padding: 16px;
     border-radius: 6px;
     background: #fff;
@@ -58,6 +62,39 @@ canvas {
 .panel select {
     padding: 6px;
     font-size: 14px;
+}
+
+.grid-dimensions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.grid-dimensions label {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.grid-dimensions input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 6px;
+    font: inherit;
+}
+
+.apply-grid {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: #f2f2f2;
+    font: inherit;
+    cursor: pointer;
+}
+
+.apply-grid:hover {
+    background: #e6e6e6;
 }
 
 .buttons {
@@ -128,7 +165,7 @@ canvas {
 
 .status dl {
     display: grid;
-    grid-template-columns: auto auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
     gap: 2px 12px;
     margin: 0;
 }
@@ -143,21 +180,37 @@ canvas {
     font-variant-numeric: tabular-nums;
 }
 
-.status table {
+.comparison {
+    flex-basis: 100%;
+    min-width: 0;
+    max-width: 1164px;
+}
+
+.comparison h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+}
+
+.table-scroll {
+    overflow-x: auto;
+}
+
+.comparison table {
     width: 100%;
+    min-width: 620px;
     border-collapse: collapse;
     font-variant-numeric: tabular-nums;
 }
 
-.status th,
-.status td {
-    padding: 3px 4px;
-    border-bottom: 1px solid #eee;
+.comparison th,
+.comparison td {
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
     text-align: right;
 }
 
-.status th:first-child,
-.status td:first-child {
+.comparison th:first-child,
+.comparison td:first-child {
     text-align: left;
 }
 

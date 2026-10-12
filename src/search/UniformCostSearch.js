@@ -28,7 +28,7 @@ class UniformCostSearch extends SearchAlgorithm {
 
         const current = this.priorityQueue.dequeue();
         this.frontier = this.priorityQueue.toArray();
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.finish(true);

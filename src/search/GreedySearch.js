@@ -27,7 +27,7 @@ class GreedySearch extends SearchAlgorithm {
 
         // A gulosa ignora o custo acumulado: expande o nó que parece mais perto do objetivo.
         const current = this.priorityQueue.dequeue();
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.frontier = this.priorityQueue.toArray();

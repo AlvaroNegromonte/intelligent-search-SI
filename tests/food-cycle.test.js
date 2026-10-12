@@ -91,7 +91,7 @@ for (const algorithm of ["BFS", "DFS", "UCS", "GREEDY", "ASTAR"]) {
             reachCollection(simulation);
             assert.strictEqual(simulation.score, score);
             assert.strictEqual(simulation.agent.position, collectedCell);
-            assert.ok(simulation.ui.buildStatusHtml(simulation.getStatus()).includes("<table>"));
+            assert.ok(simulation.ui.buildResultsHtml(simulation.results).includes("<table>"));
             simulation.collectFood();
             assert.strictEqual(simulation.score, score, "A mesma coleta não pontua duas vezes.");
             simulation.update();

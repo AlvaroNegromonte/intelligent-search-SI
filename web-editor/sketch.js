@@ -352,6 +352,9 @@ class SearchAlgorithm {
         this.finished = false;
         this.found = false;
         this.cameFrom = new Map();
+        this.visitedCells = new Set();
+        this.currentCell = null;
+        this.expansions = 0;
     }
 
     step() {
@@ -364,6 +367,20 @@ class SearchAlgorithm {
 
     getPath() {
         return this.finalPath;
+    }
+
+    recordVisit(cell) {
+        this.currentCell = cell;
+
+        if (!this.visitedCells.has(cell)) {
+            this.visitedCells.add(cell);
+            this.visited.push(cell);
+        }
+
+        // O objetivo termina a busca sem examinar seus vizinhos.
+        if (cell !== this.goal) {
+            this.expansions += 1;
+        }
     }
 
     reconstructPath() {
@@ -407,6 +424,9 @@ class SearchAlgorithm {
         this.finished = false;
         this.found = false;
         this.cameFrom = new Map();
+        this.visitedCells.clear();
+        this.currentCell = null;
+        this.expansions = 0;
     }
 }
 
@@ -419,20 +439,22 @@ class PriorityQueue {
         this.items = [];
     }
 
-    enqueue(element, priority) {
+    enqueue(element, priority, tieBreaker = 0) {
         const existingItem = this.items.find((item) => item.element === element);
 
         if (existingItem) {
-            if (priority >= existingItem.priority) {
+            if (priority > existingItem.priority
+                || (priority === existingItem.priority && tieBreaker >= existingItem.tieBreaker)) {
                 return;
             }
 
             existingItem.priority = priority;
+            existingItem.tieBreaker = tieBreaker;
         } else {
-            this.items.push({ element, priority });
+            this.items.push({ element, priority, tieBreaker });
         }
 
-        this.items.sort((itemA, itemB) => itemA.priority - itemB.priority);
+        this.items.sort((itemA, itemB) => itemA.priority - itemB.priority || itemA.tieBreaker - itemB.tieBreaker);
     }
 
     dequeue() {
@@ -517,7 +539,7 @@ class BFS extends SearchAlgorithm {
 
         const current = this.queue.shift();
         this.frontier = [...this.queue];
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.finish(true);
@@ -578,7 +600,7 @@ class DFS extends SearchAlgorithm {
         // LIFO: o último nó empilhado é o próximo a ser processado.
         const current = this.stack.pop();
         this.frontier = [...this.stack];
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.finish(true);
@@ -643,7 +665,7 @@ class UniformCostSearch extends SearchAlgorithm {
 
         const current = this.priorityQueue.dequeue();
         this.frontier = this.priorityQueue.toArray();
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.finish(true);
@@ -713,7 +735,7 @@ class GreedySearch extends SearchAlgorithm {
 
         // A gulosa ignora o custo acumulado: expande o nó que parece mais perto do objetivo.
         const current = this.priorityQueue.dequeue();
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.frontier = this.priorityQueue.toArray();
@@ -747,11 +769,19 @@ class GreedySearch extends SearchAlgorithm {
 // src/search/AStar.js
 // ========================================
 class AStar extends SearchAlgorithm {
-    constructor(grid, start, goal) {
+    constructor(grid, start, goal, weight = AStar.DEFAULT_WEIGHT) {
         super(grid, start, goal);
+        if (!Number.isFinite(weight) || weight < AStar.MIN_WEIGHT || weight > AStar.MAX_WEIGHT) {
+            throw new Error("Peso do A* deve estar entre 1 e 5.");
+        }
+
+        this.weight = weight;
+        this.minimumStepCost = Math.min(...Object.keys(Terrain.TYPES)
+            .filter((type) => Terrain.isWalkable(type)).map((type) => Terrain.getCost(type)));
         this.priorityQueue = new PriorityQueue();
         this.costSoFar = new Map();
         this.closed = new Set();
+        this.reopened = 0;
 
         this.init();
     }
@@ -759,23 +789,17 @@ class AStar extends SearchAlgorithm {
     init() {
         if (this.start) {
             this.costSoFar.set(this.start, 0);
-            this.priorityQueue.enqueue(this.start, this.getPriority(this.start, 0));
+            this.priorityQueue.enqueue(this.start, this.getPriority(this.start, 0), this.heuristic(this.start));
             this.frontier = this.priorityQueue.toArray();
         }
     }
 
     heuristic(cell) {
-        // O peso 50 favorece a proximidade do objetivo, mas pode superestimar
-        // o custo restante e não garante um caminho de custo mínimo.
-        return Heuristics.manhattan(cell, this.goal) * AStar.HEURISTIC_WEIGHT;
+        return Heuristics.manhattan(cell, this.goal) * this.minimumStepCost;
     }
 
     getPriority(cell, costToCell) {
-        const estimate = this.heuristic(cell);
-
-        // Em empates de f = g + h, prefere o nó mais perto do objetivo.
-        // O desempate é menor que qualquer diferença de custo, então não muda a ordem por f.
-        return costToCell + estimate + estimate * AStar.TIE_BREAK;
+        return costToCell + this.weight * this.heuristic(cell);
     }
 
     step() {
@@ -790,7 +814,7 @@ class AStar extends SearchAlgorithm {
 
         const current = this.priorityQueue.dequeue();
         this.closed.add(current);
-        this.visited.push(current);
+        this.recordVisit(current);
 
         if (current === this.goal) {
             this.frontier = this.priorityQueue.toArray();
@@ -802,17 +826,17 @@ class AStar extends SearchAlgorithm {
         const neighbors = this.grid.getNeighbors(current);
 
         for (const neighbor of neighbors) {
-            // Esta versão ponderada não reabre nós já expandidos.
-            if (this.closed.has(neighbor)) {
-                continue;
-            }
-
             const newCost = currentCost + neighbor.cost;
 
             if (!this.costSoFar.has(neighbor) || newCost < this.costSoFar.get(neighbor)) {
                 this.costSoFar.set(neighbor, newCost);
                 this.cameFrom.set(neighbor, current);
-                this.priorityQueue.enqueue(neighbor, this.getPriority(neighbor, newCost));
+                if (this.closed.delete(neighbor)) {
+                    this.reopened += 1;
+                }
+
+                // O menor h desempata apenas prioridades f exatamente iguais.
+                this.priorityQueue.enqueue(neighbor, this.getPriority(neighbor, newCost), this.heuristic(neighbor));
             }
         }
 
@@ -824,12 +848,14 @@ class AStar extends SearchAlgorithm {
         this.priorityQueue.clear();
         this.costSoFar.clear();
         this.closed = new Set();
+        this.reopened = 0;
         this.init();
     }
 }
 
-AStar.HEURISTIC_WEIGHT = 50;
-AStar.TIE_BREAK = 1e-6;
+AStar.DEFAULT_WEIGHT = 1.75;
+AStar.MIN_WEIGHT = 1;
+AStar.MAX_WEIGHT = 5;
 
 
 // ========================================
@@ -1048,13 +1074,16 @@ class Food {
 // src/ui/UI.js
 // ========================================
 class UI {
-    constructor() {
+    constructor(gridDimensions = { cols: 40, rows: 30 }) {
         this.availableAlgorithms = ["BFS", "DFS", "UCS", "GREEDY", "ASTAR"];
         this.selectedAlgorithm = "BFS";
         this.speed = 1;
+        this.aStarWeight = AStar.DEFAULT_WEIGHT;
         this.pendingActions = [];
         this.controls = null;
         this.lastStatusHtml = "";
+        this.lastResultsHtml = "";
+        this.gridDimensions = { ...gridDimensions };
     }
 
     initialize() {
@@ -1068,12 +1097,23 @@ class UI {
         createElement("h1", "Busca Inteligente em Grid").parent(panel);
 
         this.controls = {
-            algorithmSelect: this.createAlgorithmSelect(panel),
+            algorithmSelect: null,
+            colsInput: null,
+            rowsInput: null,
+            pauseButton: null,
+            aStarGroup: null,
+            weightSlider: null,
+            weightLabel: null,
+            comparisonButton: null,
+            results: null,
             speedSlider: null,
             speedLabel: null,
             status: null
         };
 
+        this.createGridControls(panel);
+        this.controls.algorithmSelect = this.createAlgorithmSelect(panel);
+        this.createAStarControls(panel);
         this.createActionButtons(panel);
         this.createSpeedControl(panel);
 
@@ -1082,6 +1122,68 @@ class UI {
         this.controls.status.parent(panel);
 
         this.createLegend(panel);
+        this.controls.results = createDiv();
+        this.controls.results.addClass("comparison");
+        this.controls.results.style("display", "none");
+    }
+
+    createGridControls(panel) {
+        const group = this.createGroup(panel, "Tamanho da grade");
+        const form = createElement("form");
+        form.parent(group);
+        const dimensions = createDiv();
+        dimensions.addClass("grid-dimensions");
+        dimensions.parent(form);
+
+        for (const [key, label] of [["cols", "Colunas"], ["rows", "Linhas"]]) {
+            const field = createDiv();
+            field.parent(dimensions);
+            const id = `grid-${key}`;
+            createElement("label", label).attribute("for", id).parent(field);
+            const input = createInput(String(this.gridDimensions[key]), "number");
+            input.id(id);
+            input.attribute("min", UI.MIN_GRID_DIMENSION);
+            input.attribute("max", UI.MAX_GRID_DIMENSION);
+            input.attribute("step", 1);
+            input.attribute("required", "");
+            input.parent(field);
+            this.controls[`${key}Input`] = input;
+        }
+
+        const applyButton = createButton("Aplicar tamanho");
+        applyButton.attribute("type", "submit");
+        applyButton.addClass("apply-grid");
+        applyButton.parent(form);
+        form.elt.addEventListener("submit", (event) => {
+            event.preventDefault();
+            this.requestAction(UI.ACTIONS.APPLY_GRID);
+        });
+    }
+
+    getGridDimensions() {
+        if (!this.controls) {
+            return { ...this.gridDimensions };
+        }
+
+        return {
+            cols: Number(this.controls.colsInput.value()),
+            rows: Number(this.controls.rowsInput.value())
+        };
+    }
+
+    setGridDimensions(dimensions) {
+        this.gridDimensions = { ...dimensions };
+
+        if (this.controls) {
+            this.controls.colsInput.value(dimensions.cols);
+            this.controls.rowsInput.value(dimensions.rows);
+        }
+    }
+
+    static isValidGridDimensions(dimensions) {
+        return dimensions && [dimensions.cols, dimensions.rows].every((value) =>
+            Number.isInteger(value) && value >= UI.MIN_GRID_DIMENSION && value <= UI.MAX_GRID_DIMENSION
+        );
     }
 
     createAlgorithmSelect(panel) {
@@ -1093,8 +1195,43 @@ class UI {
         }
 
         select.selected(this.selectedAlgorithm);
+        select.attribute("aria-label", "Algoritmo");
         select.parent(group);
         return select;
+    }
+
+    createAStarControls(panel) {
+        const group = this.createGroup(panel, "Peso da heurística");
+        this.controls.aStarGroup = group;
+        const row = createDiv();
+        row.addClass("speed");
+        row.parent(group);
+        this.controls.weightSlider = createSlider(AStar.MIN_WEIGHT, AStar.MAX_WEIGHT, this.aStarWeight, 0.25);
+        this.controls.weightSlider.attribute("aria-label", "Peso da heurística");
+        this.controls.weightSlider.parent(row);
+        this.controls.weightLabel = createSpan(`${this.aStarWeight}x`);
+        this.controls.weightLabel.parent(row);
+        this.controls.comparisonButton = createButton("Comparar pesos com UCS");
+        this.controls.comparisonButton.addClass("apply-grid");
+        this.controls.comparisonButton.parent(group);
+        this.controls.comparisonButton.mousePressed(() => this.requestAction(UI.ACTIONS.COMPARE_ASTAR));
+        group.style("display", this.selectedAlgorithm === "ASTAR" ? "flex" : "none");
+    }
+
+    getAStarWeight() {
+        return this.aStarWeight;
+    }
+
+    setAStarWeight(weight) {
+        if (!Number.isFinite(weight) || weight < AStar.MIN_WEIGHT || weight > AStar.MAX_WEIGHT) {
+            return false;
+        }
+
+        this.aStarWeight = weight;
+        if (this.controls) {
+            this.controls.weightSlider.value(weight);
+        }
+        return true;
     }
 
     createActionButtons(panel) {
@@ -1104,6 +1241,7 @@ class UI {
 
         const buttons = [
             { label: "Iniciar busca", action: UI.ACTIONS.START, primary: true },
+            { label: "Pausar", action: UI.ACTIONS.TOGGLE_PAUSE },
             { label: "Reiniciar", action: UI.ACTIONS.RESET },
             { label: "Novo mapa", action: UI.ACTIONS.NEW_MAP }
         ];
@@ -1112,6 +1250,11 @@ class UI {
             const button = createButton(definition.label);
             button.parent(group);
             button.mousePressed(() => this.requestAction(definition.action));
+
+            if (definition.action === UI.ACTIONS.TOGGLE_PAUSE) {
+                this.controls.pauseButton = button;
+                button.attribute("aria-pressed", "false");
+            }
 
             if (definition.primary) {
                 button.addClass("primary");
@@ -1212,6 +1355,8 @@ class UI {
         }
 
         this.speed = Number(this.controls.speedSlider.value());
+        this.setAStarWeight(Number(this.controls.weightSlider.value()));
+        this.controls.aStarGroup.style("display", this.selectedAlgorithm === "ASTAR" ? "flex" : "none");
     }
 
     display(status) {
@@ -1220,6 +1365,10 @@ class UI {
         }
 
         this.controls.speedLabel.html(this.formatSpeed(this.speed));
+        this.controls.pauseButton.html(status.paused ? "Retomar" : "Pausar");
+        this.controls.pauseButton.attribute("aria-pressed", String(status.paused));
+        this.controls.weightLabel.html(`${this.aStarWeight}x`);
+        this.controls.comparisonButton.html(status.comparing ? "Reiniciar comparação" : "Comparar pesos com UCS");
 
         // Só reescreve o painel quando algo muda, para não refazer o DOM a cada quadro.
         const html = this.buildStatusHtml(status);
@@ -1228,25 +1377,41 @@ class UI {
             this.controls.status.html(html);
             this.lastStatusHtml = html;
         }
+
+        const resultsHtml = this.buildResultsHtml(status.results);
+        if (resultsHtml !== this.lastResultsHtml) {
+            this.controls.results.html(resultsHtml);
+            this.controls.results.style("display", resultsHtml ? "block" : "none");
+            this.lastResultsHtml = resultsHtml;
+        }
     }
 
     buildStatusHtml(status) {
-        let html = `<p class="state state-${status.state.toLowerCase()}">${UI.STATE_LABELS[status.state]}</p>`;
+        const stateLabel = status.paused ? "Pausado" : UI.STATE_LABELS[status.state];
+        let html = `<p class="state state-${status.state.toLowerCase()}">${stateLabel}</p>`;
 
         if (status.message) {
             html += `<p class="message">${status.message}</p>`;
         }
 
         html += "<dl>";
-        html += `<dt>Algoritmo</dt><dd>${UI.ALGORITHM_LABELS[status.algorithm]}</dd>`;
-        html += `<dt>Nós visitados</dt><dd>${status.visited}</dd>`;
+        html += `<dt>Algoritmo</dt><dd>${this.getAlgorithmLabel(status.algorithm, status.weight)}</dd>`;
+        html += `<dt>Células visitadas</dt><dd>${status.visited}</dd>`;
+        html += `<dt>Expansões</dt><dd>${status.expansions}</dd>`;
         html += `<dt>Fronteira</dt><dd>${status.frontier}</dd>`;
         html += `<dt>Passos do caminho</dt><dd>${status.pathSteps}</dd>`;
         html += `<dt>Custo do caminho</dt><dd>${status.pathCost}</dd>`;
         html += `<dt>Comidas coletadas</dt><dd>${status.score}</dd>`;
         html += "</dl>";
 
-        return html + this.buildResultsHtml(status.results);
+        return html;
+    }
+
+    getAlgorithmLabel(algorithm, weight) {
+        if (algorithm === "ASTAR" && weight !== null && weight !== undefined) {
+            return `${weight === 1 ? "A* padrão" : "A* ponderado"} (${weight}x)`;
+        }
+        return UI.ALGORITHM_LABELS[algorithm];
     }
 
     buildResultsHtml(results) {
@@ -1254,24 +1419,31 @@ class UI {
             return "";
         }
 
-        let html = "<h2>Comparação neste mapa</h2><table><thead><tr>";
-        html += "<th>Algoritmo</th><th>Visitados</th><th>Passos</th><th>Custo</th>";
+        let html = "<h2>Comparação neste mapa</h2><div class=\"table-scroll\"><table><thead><tr>";
+        html += "<th>Algoritmo</th><th>Células visitadas</th><th>Expansões</th><th>Passos</th><th>Custo</th><th>Adicional vs UCS</th>";
         html += "</tr></thead><tbody>";
+        const reference = results.get("UCS");
+        const orderedResults = [...results.values()].sort((a, b) =>
+            this.availableAlgorithms.indexOf(a.algorithm) - this.availableAlgorithms.indexOf(b.algorithm)
+            || (a.weight || 0) - (b.weight || 0)
+        );
 
-        for (const name of this.availableAlgorithms) {
-            const result = results.get(name);
-
-            if (!result) {
-                continue;
-            }
-
+        for (const result of orderedResults) {
             const steps = result.found ? result.pathSteps : "—";
             const cost = result.found ? result.pathCost : "sem caminho";
-            html += `<tr><td>${name === "ASTAR" ? "A*" : name}</td><td>${result.visited}</td>`;
-            html += `<td>${steps}</td><td>${cost}</td></tr>`;
+            let excess = "—";
+            if (result.found && reference && reference.found) {
+                if (reference.pathCost > 0) {
+                    excess = `${((result.pathCost / reference.pathCost - 1) * 100).toFixed(1).replace(".", ",")}%`;
+                } else if (result.pathCost === 0) {
+                    excess = "0,0%";
+                }
+            }
+            html += `<tr><td>${this.getAlgorithmLabel(result.algorithm, result.weight)}</td><td>${result.visited}</td>`;
+            html += `<td>${result.expansions}</td><td>${steps}</td><td>${cost}</td><td>${excess}</td></tr>`;
         }
 
-        return html + "</tbody></table>";
+        return html + "</tbody></table></div>";
     }
 
     formatSpeed(speed) {
@@ -1282,7 +1454,10 @@ class UI {
 UI.ACTIONS = Object.freeze({
     START: "START",
     RESET: "RESET",
-    NEW_MAP: "NEW_MAP"
+    NEW_MAP: "NEW_MAP",
+    APPLY_GRID: "APPLY_GRID",
+    TOGGLE_PAUSE: "TOGGLE_PAUSE",
+    COMPARE_ASTAR: "COMPARE_ASTAR"
 });
 
 UI.ALGORITHM_LABELS = Object.freeze({
@@ -1303,6 +1478,9 @@ UI.STATE_LABELS = Object.freeze({
 UI.MIN_SPEED = 0.25;
 UI.MAX_SPEED = 4;
 UI.SPEED_STEP = 0.25;
+UI.MIN_GRID_DIMENSION = 1;
+UI.MAX_GRID_DIMENSION = 100;
+UI.COMPARISON_WEIGHTS = Object.freeze([1, 1.5, 1.75, 2, 3, 5]);
 
 // Mesmas cores usadas em Agent.display() e Food.display().
 UI.AGENT_COLOR = Object.freeze([220, 50, 50]);
@@ -1321,12 +1499,12 @@ class SearchVisualizer {
         this.pathFrames = 0;
     }
 
-    display(search) {
+    display(search, paused = false) {
         if (!search) {
             return;
         }
 
-        this.updatePathAnimation(search);
+        this.updatePathAnimation(search, paused);
 
         this.drawVisited(search.visited);
         this.drawFrontier(search.frontier);
@@ -1334,12 +1512,12 @@ class SearchVisualizer {
         this.drawPath(search.finalPath);
     }
 
-    updatePathAnimation(search) {
+    updatePathAnimation(search, paused = false) {
         // Reinicia a animação quando uma nova busca começa ou a atual é reiniciada.
         if (search !== this.trackedSearch || search.finalPath.length === 0) {
             this.trackedSearch = search;
             this.pathFrames = 0;
-        } else {
+        } else if (!paused) {
             this.pathFrames += 1;
         }
     }
@@ -1381,12 +1559,12 @@ class SearchVisualizer {
     }
 
     drawCurrent(search) {
-        // O último nó visitado é o que acabou de ser expandido.
+        // Uma reabertura pode expandir uma célula que já aparece em visited.
         if (search.isFinished() || search.visited.length === 0) {
             return;
         }
 
-        const current = search.visited[search.visited.length - 1];
+        const current = search.currentCell || search.visited[search.visited.length - 1];
 
         push();
         noFill();
@@ -1496,7 +1674,7 @@ class Simulation {
         this.agent = new Agent(this.initialAgentCell);
         this.food = new Food(null);
         this.food.relocate(this.grid, this.agent.position);
-        this.ui = new UI();
+        this.ui = new UI({ cols, rows });
         this.searchVisualizer = new SearchVisualizer(cellSize);
         this.search = null;
         this.searchAlgorithmName = null;
@@ -1508,11 +1686,16 @@ class Simulation {
         this.resultsStart = null;
         this.resultsGoal = null;
         this.state = SimulationState.WAITING;
+        this.paused = false;
+        this.comparing = false;
+        this.comparisonQueue = [];
 
         this.ui.initialize();
     }
 
     generateNewMap() {
+        this.paused = false;
+        this.cancelComparison();
         this.grid.generateProcedural();
 
         const startCell = this.grid.getRandomWalkableCell();
@@ -1534,9 +1717,30 @@ class Simulation {
         this.generateNewMap();
     }
 
+    applyGridSize(dimensions) {
+        if (!UI.isValidGridDimensions(dimensions)) {
+            this.message = `Use colunas e linhas inteiras de ${UI.MIN_GRID_DIMENSION} a ${UI.MAX_GRID_DIMENSION}.`;
+            return false;
+        }
+
+        this.grid = new Grid(dimensions.cols, dimensions.rows, this.grid.cellSize);
+        this.ui.setGridDimensions(dimensions);
+        this.generateNewMap();
+
+        if (typeof resizeCanvas === "function") {
+            resizeCanvas(this.grid.cols * this.grid.cellSize, this.grid.rows * this.grid.cellSize, true);
+        }
+
+        return true;
+    }
+
     update() {
         this.ui.update();
         this.handleUIActions();
+
+        if (this.paused) {
+            return;
+        }
 
         if (this.state === SimulationState.WAITING) {
             this.updateWaiting();
@@ -1557,6 +1761,12 @@ class Simulation {
                 this.resetSimulation();
             } else if (action === UI.ACTIONS.NEW_MAP) {
                 this.generateNewMap();
+            } else if (action === UI.ACTIONS.APPLY_GRID) {
+                this.applyGridSize(this.ui.getGridDimensions());
+            } else if (action === UI.ACTIONS.TOGGLE_PAUSE) {
+                this.paused = !this.paused;
+            } else if (action === UI.ACTIONS.COMPARE_ASTAR) {
+                this.startComparison();
             }
         }
     }
@@ -1586,6 +1796,17 @@ class Simulation {
 
     handleSearchFinished() {
         this.recordResult();
+
+        if (this.comparing) {
+            if (this.comparisonQueue.length > 0) {
+                this.startNextComparisonSearch();
+            } else {
+                this.comparing = false;
+                this.message = "Comparação concluída.";
+                this.setState(SimulationState.WAITING);
+            }
+            return;
+        }
 
         if (!this.search.found) {
             this.message = "Nenhum caminho até a comida foi encontrado.";
@@ -1636,6 +1857,10 @@ class Simulation {
     }
 
     startSearch(options = {}) {
+        this.paused = false;
+        if (options.comparing !== true) {
+            this.cancelComparison();
+        }
         if (!this.food.position) {
             this.message = "Não há comida alcançável neste mapa.";
             this.setState(SimulationState.WAITING);
@@ -1655,12 +1880,14 @@ class Simulation {
 
         this.resultsStart = this.agent.position;
         this.resultsGoal = this.food.position;
-        const algorithmName = this.ui.getSelectedAlgorithm();
+        const algorithmName = options.algorithmName || this.ui.getSelectedAlgorithm();
+        const weight = options.weight === undefined ? this.ui.getAStarWeight() : options.weight;
 
         this.search = this.createSearchAlgorithm(
             algorithmName,
             this.agent.position,
-            this.food.position
+            this.food.position,
+            weight
         );
         this.searchAlgorithmName = algorithmName;
         this.stepBudget = 0;
@@ -1669,7 +1896,31 @@ class Simulation {
         this.setState(SimulationState.SEARCHING);
     }
 
-    createSearchAlgorithm(algorithmName, start, goal) {
+    cancelComparison() {
+        this.comparing = false;
+        this.comparisonQueue = [];
+    }
+
+    startComparison() {
+        if (!this.food.position) {
+            this.message = "Não há comida alcançável neste mapa.";
+            return;
+        }
+
+        this.comparing = true;
+        this.comparisonQueue = [
+            { algorithmName: "UCS" },
+            ...UI.COMPARISON_WEIGHTS.map((weight) => ({ algorithmName: "ASTAR", weight }))
+        ];
+        this.startNextComparisonSearch();
+    }
+
+    startNextComparisonSearch() {
+        const next = this.comparisonQueue.shift();
+        this.startSearch({ ...next, comparing: true });
+    }
+
+    createSearchAlgorithm(algorithmName, start, goal, weight = this.ui.getAStarWeight()) {
         if (algorithmName === "BFS") {
             return new BFS(this.grid, start, goal);
         }
@@ -1687,7 +1938,7 @@ class Simulation {
         }
 
         if (algorithmName === "ASTAR") {
-            return new AStar(this.grid, start, goal);
+            return new AStar(this.grid, start, goal, weight);
         }
 
         throw new Error(`Algoritmo desconhecido: ${algorithmName}`);
@@ -1696,9 +1947,14 @@ class Simulation {
     recordResult() {
         const path = this.search.getPath();
 
-        this.results.set(this.searchAlgorithmName, {
+        const weight = this.searchAlgorithmName === "ASTAR" ? this.search.weight : null;
+        const key = weight === null ? this.searchAlgorithmName : `ASTAR:${weight}`;
+        this.results.set(key, {
+            algorithm: this.searchAlgorithmName,
+            weight,
             found: this.search.found,
             visited: this.search.visited.length,
+            expansions: this.search.expansions,
             pathSteps: Math.max(path.length - 1, 0),
             pathCost: this.getPathCost(path)
         });
@@ -1718,11 +1974,16 @@ class Simulation {
     getStatus() {
         const search = this.search;
         const path = search ? search.getPath() : [];
+        const algorithm = this.searchAlgorithmName || this.ui.getSelectedAlgorithm();
 
         return {
             state: this.state,
-            algorithm: this.searchAlgorithmName || this.ui.getSelectedAlgorithm(),
+            paused: this.paused,
+            algorithm,
+            weight: algorithm === "ASTAR" ? (search ? search.weight : this.ui.getAStarWeight()) : null,
+            comparing: this.comparing,
             visited: search ? search.visited.length : 0,
+            expansions: search ? search.expansions : 0,
             frontier: search ? search.frontier.length : 0,
             pathSteps: Math.max(path.length - 1, 0),
             pathCost: this.getPathCost(path),
@@ -1734,7 +1995,7 @@ class Simulation {
 
     display() {
         this.grid.display();
-        this.searchVisualizer.display(this.search);
+        this.searchVisualizer.display(this.search, this.paused);
         this.food.display(this.grid.cellSize);
         this.agent.display(this.grid.cellSize);
         this.ui.display(this.getStatus());
@@ -1756,13 +2017,14 @@ class Simulation {
 let simulation;
 
 function setup() {
-    createCanvas(800, 600);
-
-    simulation = new Simulation({
+    const options = {
         cols: 40,
         rows: 30,
         cellSize: 20
-    });
+    };
+    createCanvas(options.cols * options.cellSize, options.rows * options.cellSize);
+
+    simulation = new Simulation(options);
     simulation.generateNewMap();
 }
 
